@@ -4,7 +4,7 @@ Newsroom reads the day's news from a bunch of RSS feeds and web searches, then h
 
 ![A day's briefing in newsroom, with the archive and the run desk in the sidebar](img/newsroom.jpg)
 
-The sources lean global on purpose. Western outlets sit next to Al Jazeera, CGTN, Global Times, Xinhua and a few others, since a single set of papers tends to tell a single story.
+The default sources lean global on purpose. Western outlets sit next to Al Jazeera, CGTN, Global Times, Xinhua and a few others, since a single set of papers tends to tell a single story.
 
 It's written in Clojure and runs on [jolt](https://github.com/jolt-lang/jolt).
 
