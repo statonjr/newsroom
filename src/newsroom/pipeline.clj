@@ -41,19 +41,13 @@
 (defn- plus-days [day n]
   (str (.plusDays (java.time.LocalDate/parse day) n)))
 
-(def ^:private status-lock
-  "glimmer's swap! on a ratom reads and then resets (glimmer v0.1.3), so two
-  sources finishing at once could lose one's update. Held for each status
-  write until a glimmer with an atomic swap! is pinned."
-  (Object.))
-
 (defn- update-status!
   "Apply f to the status when it belongs to run `run-id`. A run's writes are
   tagged so a cancelled run whose fiber is still winding down cannot write
-  over the status of the run that replaced it."
+  over the status of the run that replaced it. Sources report from several
+  threads at once, which relies on swap! being atomic (glimmer v0.1.4)."
   [run-id f & args]
-  (locking status-lock
-    (swap! status (fn [st] (if (identical? run-id (:run st)) (apply f st args) st)))))
+  (swap! status (fn [st] (if (identical? run-id (:run st)) (apply f st args) st))))
 
 (def ^:private max-events 60)
 
