@@ -8,7 +8,7 @@
   An adapter reports what it is doing with `emit!`, which the page shows
   live while a run goes.
 
-  :rss and :web-search are built in. A plugin adds a type:
+  :rss, :scrape and :web-search are built in. A plugin adds a type:
 
     (ns my.telegram
       (:require [newsroom.sources :as sources]))
@@ -44,11 +44,14 @@
 (defn source-name [source]
   (or (:name source) (:url source) (some-> (:type source) name)))
 
-(def ^:private user-agent "newsroom/0.1 (+https://github.com/jolt-lang)")
+(def default-user-agent "newsroom/0.1 (+https://github.com/yogthos/newsroom)")
 
-(defn- get-text [url timeout-ms]
-  (let [resp (http/get url {:headers {"User-Agent" user-agent
-                                      "Accept" "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"}
+(defn fetch-text
+  "The body of `url` as text; throws on a status other than 2xx."
+  [url {:keys [timeout-ms user-agent]}]
+  (let [timeout-ms (or timeout-ms 30000)
+        resp (http/get url {:headers {"User-Agent" (or user-agent default-user-agent)
+                                      "Accept" "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html, */*"}
                             :socket-timeout timeout-ms
                             :conn-timeout (min timeout-ms 15000)
                             :throw-exceptions false})]
@@ -60,10 +63,36 @@
 
 (defmethod fetch-items :rss [source {:keys [config] :as ctx}]
   (emit! ctx (str "Reading " (source-name source)) {:url (:url source)})
-  (let [body (get-text (:url source) (:source-timeout-ms config 30000))
+  (let [body (fetch-text (:url source) {:timeout-ms (:source-timeout-ms config 30000)
+                                       :user-agent (:user-agent source)})
         ;; libxml2 refuses a document with anything before the prolog
         body (subs body (or (str/index-of body "<") 0))]
     (feed/feed-items (xml/parse body) (source-name source))))
+
+;; --- scraping -----------------------------------------------------------------------
+;; A page with no feed: the links on it whose URL matches :link-pattern are its
+;; stories, titled by their link text. With :summaries, each story's own page
+;; is read too for its description and date, one after another, which costs a
+;; request per story.
+
+(defn- with-meta-from-page [ctx opts item]
+  (try
+    (let [{:keys [description published]} (feed/page-meta (fetch-text (:url item) opts))]
+      (assoc item :summary (feed/clip (or description "") feed/summary-chars) :published published))
+    (catch Exception e
+      (when (instance? InterruptedException e) (throw e))
+      (emit! ctx (str "couldn't read " (:url item) ": " (ex-message e)) {:level :error :url (:url item)})
+      item)))
+
+(defmethod fetch-items :scrape [source {:keys [config] :as ctx}]
+  (let [opts {:timeout-ms (:source-timeout-ms config 30000) :user-agent (:user-agent source)}
+        _ (emit! ctx (str "Reading " (source-name source)) {:url (:url source)})
+        links (take (:limit source 15)
+                    (feed/page-links (fetch-text (:url source) opts) (:url source)
+                                     (re-pattern (:link-pattern source ".")) (source-name source)))]
+    (if (:summaries source)
+      (mapv #(with-meta-from-page ctx opts %) links)
+      (vec links))))
 
 ;; --- web search --------------------------------------------------------------------
 ;; Exa's hosted MCP, as samizdat.agent.websearch calls it: a plain JSON-RPC

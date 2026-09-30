@@ -15,9 +15,12 @@
   (let [v (jolt.host/getenv k)]
     (when-not (str/blank? v) v)))
 
-(defn home []
+(defn home
+  "$NEWSROOM_HOME, else .config/newsroom in the user's home directory, which
+  Windows names in USERPROFILE rather than HOME."
+  []
   (or (env "NEWSROOM_HOME")
-      (str (env "HOME") "/.config/newsroom")))
+      (str (or (env "HOME") (env "USERPROFILE")) "/.config/newsroom")))
 
 (defn path [& parts] (str/join "/" (cons (home) parts)))
 

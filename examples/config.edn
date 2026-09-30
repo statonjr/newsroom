@@ -1,0 +1,125 @@
+;; A sample ~/.config/newsroom/config.edn showing every option. Keys you leave
+;; out take the defaults in resources/defaults/config.edn, so a real config
+;; can be much shorter than this.
+{:port 3000
+
+ ;; When the daily briefing runs, local time. nil turns the schedule off and
+ ;; leaves only the refresh button.
+ :run-at "07:00"
+
+ ;; Days of briefings to keep. Older days are deleted with their sources and
+ ;; markdown files after each new briefing. -1 keeps everything.
+ :keep-days 100
+
+ ;; How far back an item's date may be, in days before the briefing's day.
+ ;; Undated items are always kept.
+ :lookback-days 1
+
+ ;; The most items taken from one source, and in all. Sources are taken in
+ ;; turn, so the overall cap trims every source evenly.
+ :max-items-per-source 12
+ :max-items 180
+
+ ;; How long one source may take before the run goes on without it.
+ :source-timeout-ms 30000
+
+ ;; Where the sqlite database lives, if not in the config directory.
+ ;; :db "/var/lib/newsroom/newsroom.sqlite3"
+
+ :sources
+ [;; --- RSS and Atom --------------------------------------------------------
+  ;; Any RSS 2.0, RSS 1.0 (RDF) or Atom feed.
+  {:type :rss :name "BBC World" :url "https://feeds.bbci.co.uk/news/world/rss.xml"}
+  {:type :rss :name "CGTN Business" :url "https://www.cgtn.com/subscribe/rss/section/business.xml"}
+  ;; some servers refuse clients they don't recognize; any source can send
+  ;; its own User-Agent
+  {:type :rss :name "Wired" :url "https://www.wired.com/feed/rss"
+   :user-agent "Mozilla/5.0 (compatible; newsroom)"}
+
+  ;; --- scraping a page ------------------------------------------------------
+  ;; For a site with no feed. The page at :url is read, and every link on it
+  ;; whose full URL matches :link-pattern (a Java-style regex, so backslashes
+  ;; are doubled in EDN) becomes a story, titled by its link text. Links
+  ;; that aren't stories, like section fronts and navigation, just need a
+  ;; pattern that leaves them out. Relative links are resolved against the
+  ;; page first.
+  {:type :scrape :name "Xinhua" :url "https://english.news.cn/world/index.htm"
+   :link-pattern "news\\.cn/(\\w+/)?\\d{8}/[0-9a-f]{32}/c\\.html"
+   ;; the most stories taken from the page, default 15
+   :limit 15}
+
+  ;; With :summaries true, each story's own page is read too, for the
+  ;; description and publication date in its meta tags. That's one request
+  ;; per story, so keep :limit small.
+  {:type :scrape :name "CGTN Sci-Tech" :url "https://www.cgtn.com/sci-tech"
+   :link-pattern "cgtn\\.com/news/\\d{4}-\\d{2}-\\d{2}/"
+   :limit 8
+   :summaries true}
+
+  ;; --- web search -----------------------------------------------------------
+  ;; Searches through Exa. No key is needed, and EXA_API_KEY raises the rate
+  ;; limit. {{date}} in a query is the briefing's day written out, like
+  ;; "30 September 2026".
+  {:type :web-search :name "Web search"
+   ;; results per query, at most 10
+   :results 6
+   :queries ["top world news {{date}}"
+             "global economy markets news {{date}}"
+             ;; site: keeps a search to one outlet, and :name credits its
+             ;; results to that outlet instead of to the search
+             {:name "CCTV" :query "site:english.cctv.com news {{date}}"}]}
+
+  ;; --- a plugin -------------------------------------------------------------
+  ;; A source type of your own, from a file in plugins/. The whole map is
+  ;; handed to the plugin, so it can take any keys it likes.
+  ;; {:type :telegram :name "Some channel" :channel "@example"}
+  ]
+
+ ;; --- models ---------------------------------------------------------------
+ ;; Endpoints are declared under :providers by alias. An alias named after a
+ ;; built-in (:deepseek, :glm, :openai, :local, :ollama) takes that provider's
+ ;; defaults and only overrides what it sets; any other alias needs a :type
+ ;; saying which built-in it works like.
+ ;;
+ ;; A key comes from :api-key-env, the name of an environment variable, or
+ ;; from :api-key, either written out or as "${VAR}". Each built-in already
+ ;; knows its usual variable: DEEPSEEK_API_KEY, ZHIPU_API_KEY, OPENAI_API_KEY.
+ :providers
+ {;; DeepSeek, with a bigger model than the default flash one
+  :deepseek {:model "deepseek-v4-pro"}
+
+  ;; Zhipu's GLM through the coding plan endpoint
+  :glm {:model "glm-5.3"}
+
+  ;; OpenAI
+  :openai {:model "gpt-4o"}
+
+  ;; any OpenAI-compatible service, here OpenRouter
+  :openrouter {:type :openai
+               :base-url "https://openrouter.ai/api/v1"
+               :api-key-env "OPENROUTER_API_KEY"
+               :model "qwen/qwen3-235b-a22b"
+               ;; extra headers some gateways want
+               :headers {"HTTP-Referer" "https://github.com/yogthos/newsroom"}}
+
+  ;; a local llama.cpp server, vLLM or LM Studio
+  :llama {:type :local
+          :base-url "http://127.0.0.1:8080/v1"
+          :model "local-model"
+          ;; let a reasoning model think; off by default for local servers
+          :thinking? true
+          ;; local models are slow, so give them longer
+          :timeout-ms 1800000}
+
+  ;; Ollama's own API
+  :ollama {:model "qwen3"}}
+
+ ;; Every provider also takes these, shown here with their defaults:
+ ;;   :max-tokens 32768     the reply's budget; a thinking model spends part
+ ;;                         of it on reasoning before it writes anything
+ ;;   :temperature 0.4
+ ;;   :timeout-ms 600000    how long a read may wait on the model
+ ;;   :reasoning-effort     "low", "high" and so on, where the model has it
+
+ ;; Which provider writes the briefing.
+ :roles {:analyst :deepseek}}

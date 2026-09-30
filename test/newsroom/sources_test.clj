@@ -45,3 +45,41 @@
                               {"a" [down] "b" [rate-limited rate-limited]})]
     (is (instance? Exception result))
     (is (str/includes? (ex-message result) "every search failed"))))
+
+(def ^:private front
+  "<a href=\"/article/one-story-here\">The first story of the day</a>
+   <a href=\"/article/two-story-here\">The second story of the day</a>
+   <a href=\"/article/three-story-here\">The third story of the day</a>
+   <a href=\"/about\">About this newspaper</a>")
+
+(defn- article [desc day]
+  (str "<meta property=\"og:description\" content=\"" desc "\">"
+       "<meta property=\"article:published_time\" content=\"" day "T08:00:00Z\">"))
+
+(deftest a-scraped-page-gives-its-story-links
+  (let [fetched (atom [])]
+    (with-redefs [sources/fetch-text (fn [url _] (swap! fetched conj url) front)]
+      (let [items (sources/fetch-items {:type :scrape :name "Paper" :url "https://paper.test/world"
+                                        :link-pattern "/article/" :limit 2}
+                                       {:day "2026-09-30" :config {}})]
+        (is (= ["https://paper.test/article/one-story-here" "https://paper.test/article/two-story-here"]
+               (map :url items)))
+        (is (every? #(= "Paper" (:source %)) items))
+        (is (= ["https://paper.test/world"] @fetched) "only the page, without :summaries")))))
+
+(defn- throw-later [] (fn [] (throw (ex-info "HTTP 403" {}))))
+
+(deftest summaries-come-from-each-story-page
+  (let [pages {"https://paper.test/world" front
+               "https://paper.test/article/one-story-here" (article "One happened." "2026-09-30")
+               "https://paper.test/article/two-story-here" (throw-later)}
+        events (atom [])]
+    (with-redefs [sources/fetch-text (fn [url _] (let [p (pages url)] (if (fn? p) (p) p)))]
+      (let [items (sources/fetch-items {:type :scrape :name "Paper" :url "https://paper.test/world"
+                                        :link-pattern "/article/" :limit 2 :summaries true}
+                                       {:day "2026-09-30" :config {}
+                                        :emit #(swap! events conj (:text %))})]
+        (is (= ["One happened." ""] (map :summary items)))
+        (is (= ["2026-09-30T08:00:00Z" nil] (map :published items)))
+        (is (some #(str/includes? % "couldn't read") @events)
+            "a story page that fails keeps its link and says so")))))

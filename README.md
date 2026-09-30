@@ -8,6 +8,8 @@ It's written in Clojure and runs on [jolt](https://github.com/jolt-lang/jolt).
 
 ## Running it
 
+The [releases](https://github.com/yogthos/newsroom/releases) page has builds for macOS, Linux and Windows, so you can grab one of those and run `newsroom` without installing anything else. From a checkout you'd run it with jolt instead.
+
 ```
 jolt serve
 ```
@@ -18,7 +20,7 @@ The model needs an API key. DeepSeek is the default and reads `DEEPSEEK_API_KEY`
 
 ## Making it yours
 
-Everything you'd want to change lives in `~/.config/newsroom`. The feeds, searches, schedule and model are all in `config.edn`, while `prompt.md` holds the instructions the model gets, so that's the file to edit when you want a different kind of briefing. To follow a source newsroom doesn't know about, drop a `.clj` file into `plugins/` that teaches it a new source type.
+Everything you'd want to change lives in `~/.config/newsroom`. The sources, schedule and model are all in `config.edn`, while `prompt.md` holds the instructions the model gets, so that's the file to edit when you want a different kind of briefing. A source can be an RSS feed or a web search, and a site with no feed can still be read by scraping the story links off its front page. [`examples/config.edn`](examples/config.edn) walks through every kind of source and every model provider. To follow a source newsroom doesn't know about, drop a `.clj` file into `plugins/` that teaches it a new source type.
 
 Each day goes into a sqlite database and gets written out as a markdown file in `briefings/` too. Only the last 100 days are kept, which stops a long-running server from slowly eating the disk, and you can set `:keep-days` to -1 if you'd rather keep everything.
 

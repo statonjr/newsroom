@@ -4,3 +4,6 @@ target/
 *.sqlite3*
 .writ-cache/
 .dirge/
+/newsroom
+/newsroom.exe
+newsroom.build/

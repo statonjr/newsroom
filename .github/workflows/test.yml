@@ -1,0 +1,72 @@
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-linux
+          - os: macos-latest
+            target: aarch64-macos
+          - os: windows-latest
+            target: x86_64-windows
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # sqlite3, libxml2 and OpenSSL are loaded at runtime. macOS and Linux
+      # runners have them; Windows gets the MSYS2 builds.
+      - name: Native libraries (Windows)
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-sqlite3
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zlib
+
+      - name: Put the MSYS2 libraries on PATH (Windows)
+        if: runner.os == 'Windows'
+        run: echo "$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')/mingw64/bin" >> "$GITHUB_PATH"
+
+      # Latest jolt by default; the JOLT_PIN repository variable pins one.
+      - name: Resolve jolt version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOLT_PIN: ${{ vars.JOLT_PIN }}
+        run: |
+          if [ -n "$JOLT_PIN" ]; then
+            ver="$JOLT_PIN"
+            echo "jolt: pinned to $ver"
+          else
+            ver=$(gh api repos/jolt-lang/jolt/releases/latest --jq .tag_name)
+            [ -n "$ver" ] && [ "$ver" != "null" ] || { echo "could not resolve latest jolt"; exit 1; }
+            echo "jolt: latest release is $ver"
+          fi
+          echo "JOLT_VERSION=$ver" >> "$GITHUB_ENV"
+
+      - name: Install jolt
+        run: ci/install-jolt.sh "${JOLT_VERSION}" "${{ matrix.target }}"
+
+      - name: Cache git deps
+        uses: actions/cache@v4
+        with:
+          path: ~/.jolt/gitlibs
+          key: gitlibs-${{ matrix.target }}-${{ hashFiles('deps.edn') }}
+
+      - name: Test
+        run: jolt -M:test

@@ -1,6 +1,7 @@
 (ns newsroom.test-runner
   "Runs every test namespace, and checks the core against its writ spec."
   (:require [clojure.test :as t]
+            [newsroom.config-test]
             [newsroom.feed-test]
             [newsroom.llm-stream-test]
             [newsroom.markdown-test]
@@ -12,6 +13,7 @@
 
 (def namespaces
   '[newsroom.news-spec
+    newsroom.config-test
     newsroom.feed-test
     newsroom.llm-stream-test
     newsroom.markdown-test

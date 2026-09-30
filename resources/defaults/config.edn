@@ -25,9 +25,11 @@
  ;; how long one source may take before the run goes on without it
  :source-timeout-ms 30000
 
- ;; Sources. :type picks the adapter: :rss (RSS 2.0, RSS 1.0, Atom) and
- ;; :web-search (Exa; EXA_API_KEY only raises the rate limit) ship with
- ;; newsroom. A plugin in plugins/*.clj can add its own type by extending
+ ;; Sources. :type picks the adapter: :rss (RSS 2.0, RSS 1.0, Atom),
+ ;; :scrape (the story links on a web page) and :web-search (Exa;
+ ;; EXA_API_KEY only raises the rate limit) ship with newsroom.
+ ;; examples/config.edn in the repo shows every option. A plugin in
+ ;; plugins/*.clj can add its own type by extending
  ;; newsroom.sources/fetch-items.
  :sources
  [{:type :rss :name "Al Jazeera" :url "https://www.aljazeera.com/xml/rss/all.xml"}
@@ -44,15 +46,19 @@
   {:type :rss :name "CGTN Business" :url "https://www.cgtn.com/subscribe/rss/section/business.xml"}
   {:type :rss :name "China News Service" :url "http://www.ecns.cn/rss/rss.xml"}
   {:type :rss :name "Sixth Tone" :url "https://www.sixthtone.com/rss"}
-  ;; China Daily, Xinhua and CCTV publish no current feed (Xinhua's and
-  ;; People's Daily's stopped updating, Global Times' only one recommends
-  ;; old articles), so they are searched by site
-  {:type :web-search :name "Chinese media search"
+  ;; Xinhua, China Daily and Global Times have no current feed (Xinhua's and
+  ;; People's Daily's stopped updating, Global Times' only recommends old
+  ;; articles), so their front pages are scraped for story links
+  {:type :scrape :name "Xinhua" :url "https://english.news.cn/world/index.htm"
+   :link-pattern "news\\.cn/(\\w+/)?\\d{8}/[0-9a-f]{32}/c\\.html"}
+  {:type :scrape :name "China Daily" :url "https://www.chinadaily.com.cn/world"
+   :link-pattern "chinadaily\\.com\\.cn/a/\\d{6}/\\d{2}/"}
+  {:type :scrape :name "Global Times" :url "https://www.globaltimes.cn/world/index.html"
+   :link-pattern "globaltimes\\.cn/page/\\d{6}/\\d+\\.shtml"}
+  ;; CCTV's pages are built by script, so there are no links to scrape
+  {:type :web-search :name "CCTV search"
    :results 6
-   :queries [{:name "Global Times" :query "site:globaltimes.cn news {{date}}"}
-             {:name "China Daily" :query "site:chinadaily.com.cn news {{date}}"}
-             {:name "Xinhua" :query "site:english.news.cn Xinhua news {{date}}"}
-             {:name "CCTV" :query "site:english.cctv.com news {{date}}"}]}
+   :queries [{:name "CCTV" :query "site:english.cctv.com news {{date}}"}]}
   {:type :rss :name "SCMP China Economy" :url "https://www.scmp.com/rss/318421/feed"}
 
   ;; science and technology
@@ -63,13 +69,15 @@
   {:type :rss :name "IEEE Spectrum" :url "https://spectrum.ieee.org/feeds/feed.rss"}
   {:type :rss :name "Rest of World" :url "https://restofworld.org/feed/latest"}
   {:type :rss :name "SCMP Tech" :url "https://www.scmp.com/rss/36/feed"}
-  ;; CGTN and the others have no sci-tech feed, so their sci-tech coverage
-  ;; is searched by site
+  ;; CGTN and China Daily have no sci-tech feed, but their sci-tech pages
+  ;; scrape cleanly
+  {:type :scrape :name "CGTN Sci-Tech" :url "https://www.cgtn.com/sci-tech"
+   :link-pattern "cgtn\\.com/news/\\d{4}-\\d{2}-\\d{2}/"}
+  {:type :scrape :name "China Daily Tech" :url "https://www.chinadaily.com.cn/business/tech"
+   :link-pattern "chinadaily\\.com\\.cn/a/\\d{6}/\\d{2}/"}
   {:type :web-search :name "Chinese sci-tech search"
    :results 6
-   :queries [{:name "CGTN Sci-Tech" :query "site:cgtn.com science technology news {{date}}"}
-             {:name "Global Times Sci-Tech" :query "site:globaltimes.cn science technology {{date}}"}
-             {:name "China Daily Tech" :query "site:chinadaily.com.cn science technology {{date}}"}
+   :queries [{:name "Global Times Sci-Tech" :query "site:globaltimes.cn science technology {{date}}"}
              {:name "Xinhua Sci-Tech" :query "site:english.news.cn science technology {{date}}"}]}
   {:type :web-search :name "Web search"
    :results 6

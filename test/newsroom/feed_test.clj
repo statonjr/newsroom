@@ -131,3 +131,50 @@
     (is (str/includes? (:summary (first items)) "A rundown of the news."))
     (is (not (str/includes? (:summary (first items)) "#")))
     (is (= "Web search" (:source (second items))))))
+
+(def page
+  "<html><head><title>World news</title></head><body>
+   <nav><a href=\"/\">Home</a> <a href=\"/world\">World</a></nav>
+   <a class=\"story\" href=\"/article/talks-resume-1a2b\"><h3>Talks <b>resume</b> in Geneva</h3></a>
+   <a href=\"https://news.example.com/article/rates-held-3c4d?utm_source=home\">Rates held &amp; markets calm</a>
+   <a href='/article/talks-resume-1a2b'>Talks resume in Geneva</a>
+   <a href=\"/article/x9\">Go</a>
+   <a href=\"https://elsewhere.com/article/other\">Another site's story</a>
+   <a href=\"/video/clip-5\">A video clip</a>
+   <a href=\"javascript:void(0)\">Menu</a>
+   </body></html>")
+
+(deftest page-links
+  (let [items (feed/page-links page "https://news.example.com/world" #"/article/" "Example")]
+    (is (= ["https://news.example.com/article/talks-resume-1a2b"
+            "https://news.example.com/article/rates-held-3c4d?utm_source=home"
+            "https://elsewhere.com/article/other"]
+           (map :url items))
+        "matching links, resolved against the page, each story once, in page order")
+    (is (= ["Talks resume in Geneva" "Rates held & markets calm" "Another site's story"]
+           (map :title items)))
+    (is (every? #(= "Example" (:source %)) items))
+    (testing "a link whose text is too short to be a headline is skipped"
+      (is (not-any? #(= "Go" (:title %)) items))))
+  (testing "dot segments are resolved"
+    (is (= ["https://e.cn/20260930/abc/c.html" "https://e.cn/world/asia/x.html"]
+           (map :url (feed/page-links (str "<a href=\"../20260930/abc/c.html\">A story from the day before</a>"
+                                           "<a href=\"./asia/x.html\">A story from the region here</a>")
+                                      "https://e.cn/world/index.htm" #"html" "E")))))
+  (testing "a relative link without a leading slash resolves against the page's directory"
+    (is (= ["https://e.com/news/story-one"]
+           (map :url (feed/page-links "<a href=\"story-one\">The first story of the day</a>"
+                                      "https://e.com/news/index.html" #"story" "E"))))))
+
+(deftest page-meta
+  (let [html "<head><meta property=\"og:title\" content=\"Talks resume\">
+              <meta name=\"description\" content=\"Delegates met &amp; talked.\">
+              <meta property=\"og:description\" content=\"Delegates met in Geneva.\">
+              <meta property=\"article:published_time\" content=\"2026-09-30T08:00:00Z\"></head>"]
+    (is (= {:description "Delegates met in Geneva." :published "2026-09-30T08:00:00Z"}
+           (feed/page-meta html))
+        "og:description wins over the plain description"))
+  (is (= {:description "Plain one." :published nil}
+         (feed/page-meta "<meta content=\"Plain one.\" name=\"description\">"))
+      "attribute order doesn't matter")
+  (is (= {:description nil :published nil} (feed/page-meta "<p>nothing</p>"))))
