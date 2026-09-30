@@ -7,3 +7,5 @@ target/
 /newsroom
 /newsroom.exe
 newsroom.build/
+.clj-kondo/
+.lsp/
