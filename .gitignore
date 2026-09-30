@@ -1,0 +1,6 @@
+.jolt/
+target/
+.cpcache/
+*.sqlite3*
+.writ-cache/
+.dirge/

@@ -1,0 +1,67 @@
+{:jolt/min-version "0.8.13"
+
+ :paths ["src" "resources"]
+
+ :deps {;; HTTP server: HTTP/1.1 over BSD sockets through jolt.ffi
+        jolt-lang/ring-chez-adapter
+        {:git/url "https://github.com/jolt-lang/ring-chez-adapter"
+         :git/tag "v0.7.10"
+         :git/sha "8c93fa6fadad917f488358392d496752759a53e6"}
+
+        ;; outbound HTTP: feeds, web search, the LLM
+        jolt-lang/http-client
+        {:git/url "https://github.com/jolt-lang/http-client"
+         :git/tag "v0.0.17"
+         :git/sha "77d7e310a1aab2c7d5ecc9f6cc10f77b7a7f23ba"}
+
+        ;; java.time shim; data.json and date handling need it
+        jolt-lang/time
+        {:git/url "https://github.com/jolt-lang/time"
+         :git/tag "v0.0.10"
+         :git/sha "faff43aa3260bf79bb3fba10f6d9336190f83281"}
+
+        ;; sqlite through the system libsqlite3
+        jolt-lang/db
+        {:git/url "https://github.com/jolt-lang/db"
+         :git/tag "v0.4.0"
+         :git/sha "d85f391ca521da389b935c38f3d78b30eaa23208"}
+
+        ;; clojure.xml over libxml2, for RSS and Atom
+        jolt-lang/xml
+        {:git/url "https://github.com/jolt-lang/xml"
+         :git/tag "v0.0.3"
+         :git/sha "90706d59f7c3d6ec2b3f754ec88399650ce1934e"}
+
+        ;; datastar wire protocol, SSE re-render on ratom change
+        jolt-lang/glimmer-datastar
+        {:git/url "https://github.com/jolt-lang/glimmer-datastar"
+         :git/tag "v0.1.1"
+         :git/sha "2f4339de998de5eba6f9fc1bb08c6bba3158b787"}
+
+        ;; missionary for jolt: concurrent, cancellable ingestion
+        jlt-commons/ebb
+        {:git/url "https://github.com/jlt-commons/ebb"
+         :git/tag "v0.1.3"
+         :git/sha "5f6a4f3adcfcb8cace4cbb691c7be6cb0d15724b"}
+
+        org.clojure/data.json
+        {:git/url "https://github.com/clojure/data.json"
+         :git/sha "94463ffb54482427fd9b31f264b06bff6dcfd557"}
+
+        weavejester/hiccup
+        {:git/url "https://github.com/weavejester/hiccup"
+         :git/sha "b6b12097ba973141fe87c1b4d6a27ddcce5d5929"}}
+
+ ;; ring-chez-adapter binds sockets through the process's own libc symbols
+ :jolt/native [{:name "libc (POSIX sockets)" :process true}]
+
+ :jolt/build {:embed ["resources"]}
+
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {jlt-commons/writ
+                               {:git/url "https://github.com/jlt-commons/writ"
+                                :git/sha "121af7eec49f579def1b8db3f132db90830f5e78"}}
+                  :main-opts ["-m" "newsroom.test-runner"]}}
+
+ :tasks {serve {:doc "run the newsroom server" :main-opts ["-m" "newsroom.core"]}
+         test  "jolt -M:test"}}
