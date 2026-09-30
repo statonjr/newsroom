@@ -58,12 +58,8 @@
         {:git/url "https://github.com/weavejester/hiccup"
          :git/sha "b6b12097ba973141fe87c1b4d6a27ddcce5d5929"}}
 
- ;; ring-chez-adapter binds sockets through the process's own libc symbols.
- ;; jolt-lang/xml declares libxml2 for macOS and Linux only; jolt folds this
- ;; :windows name into its declaration. The Windows release ships the MSYS2
- ;; builds of libxml2 and sqlite next to newsroom.exe.
- :jolt/native [{:name "libc (POSIX sockets)" :process true}
-               {:name "xml2" :windows ["libxml2-16.dll" "libxml2-2.dll" "libxml2.dll"]}]
+ ;; ring-chez-adapter binds sockets through the process's own libc symbols
+ :jolt/native [{:name "libc (POSIX sockets)" :process true}]
 
  :jolt/build {:embed ["resources"]}
 

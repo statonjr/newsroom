@@ -11,13 +11,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # No Windows row: jolt's fiber poller and ring-chez-adapter's server are
+        # POSIX-only (jolt-lang/jolt#1107), so the web server can't run there yet.
         include:
           - os: ubuntu-latest
             target: x86_64-linux
           - os: macos-latest
             target: aarch64-macos
-          - os: windows-latest
-            target: x86_64-windows
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -25,30 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # sqlite3, libxml2 and OpenSSL are loaded at runtime. macOS and Linux
-      # runners have them; Windows gets the MSYS2 builds.
-      - name: Native libraries (Windows)
-        if: runner.os == 'Windows'
-        id: msys2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: false
-          install: >-
-            mingw-w64-x86_64-sqlite3
-            mingw-w64-x86_64-libxml2
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-zlib
-
-      - name: Put the MSYS2 libraries on PATH (Windows)
-        if: runner.os == 'Windows'
-        # GITHUB_PATH takes the entry as written, and Windows programs can't
-        # read the /d/... form bash prints, so it gets the Windows path
-        run: |
-          bin="$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')/mingw64/bin"
-          ls "$bin" | grep -Ei 'xml2|sqlite|ssl|crypto|zlib|iconv' || true
-          cygpath -w "$bin" >> "$GITHUB_PATH"
-
+      # sqlite3, libxml2 and OpenSSL are loaded at runtime; the runners have them.
       # Latest jolt by default; the JOLT_PIN repository variable pins one.
       - name: Resolve jolt version
         env:

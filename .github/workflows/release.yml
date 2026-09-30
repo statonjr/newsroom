@@ -1,7 +1,7 @@
 name: release
 
-# Build standalone binaries for macOS (arm64), Linux (x86_64) and Windows
-# (x86_64) and attach them to the GitHub release when a v* tag is pushed.
+# Build standalone binaries for macOS (arm64) and Linux (x86_64) and attach
+# them to the GitHub release when a v* tag is pushed.
 # workflow_dispatch builds the same archives as workflow artifacts without
 # publishing anything.
 on:
@@ -23,42 +23,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # No Windows row: jolt's fiber poller and ring-chez-adapter's server are
+        # POSIX-only (jolt-lang/jolt#1107), so the web server can't run there yet.
         include:
           - os: macos-latest
             target: aarch64-macos
           - os: ubuntu-latest
             target: x86_64-linux
-          - os: windows-latest
-            target: x86_64-windows
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-
-      - name: Native libraries (Windows)
-        if: runner.os == 'Windows'
-        id: msys2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: false
-          install: >-
-            mingw-w64-x86_64-sqlite3
-            mingw-w64-x86_64-libxml2
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-zlib
-            mingw-w64-x86_64-ntldd
-
-      - name: Put the MSYS2 libraries on PATH (Windows)
-        if: runner.os == 'Windows'
-        # GITHUB_PATH takes the entry as written, and Windows programs can't
-        # read the /d/... form bash prints, so it gets the Windows path
-        run: |
-          bin="$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')/mingw64/bin"
-          cygpath -w "$bin" >> "$GITHUB_PATH"
-          echo "MINGW_BIN=$bin" >> "$GITHUB_ENV"
 
       - name: Resolve jolt version
         env:
@@ -93,45 +70,24 @@ jobs:
             *)           name="newsroom-${{ matrix.target }}" ;;
           esac
           mkdir -p "$name"
-          if [ -f newsroom.exe ]; then exe=newsroom.exe; else exe=newsroom; fi
+          exe=newsroom
           cp "$exe" README.md "$name/"
           cp examples/config.edn "$name/config.example.edn"
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            # the libraries newsroom loads, and every MSYS2 library they need
-            for lib in libsqlite3-0.dll libxml2-*.dll libssl-3-x64.dll libcrypto-3-x64.dll zlib1.dll; do
-              for f in "$MINGW_BIN"/$lib; do
-                cp "$f" "$name/"
-                ntldd -R "$f" | grep -io 'mingw64\\bin\\[^ ]*\.dll' | sed 's/.*\\//' | while read -r dep; do
-                  cp -n "$MINGW_BIN/$dep" "$name/" 2>/dev/null || true
-                done
-              done
-            done
-            ls "$name"
-          fi
           echo "PKG_DIR=$name" >> "$GITHUB_ENV"
           echo "PKG_EXE=$exe" >> "$GITHUB_ENV"
 
-      # Run the packaged binary with nothing but the system on PATH, so a
-      # library the archive is missing fails here and not on a user's machine.
+      # Run the packaged binary, so a native library or embedded resource the
+      # build is missing fails here and not on a user's machine.
       - name: Smoke test
         run: |
           cd "$PKG_DIR"
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            PATH="/c/Windows/System32:/c/Windows:/usr/bin" ../ci/smoke.sh "./$PKG_EXE"
-          else
-            ../ci/smoke.sh "./$PKG_EXE"
-          fi
+          ../ci/smoke.sh "./$PKG_EXE"
           rm -f smoke.log
 
       - name: Archive
         run: |
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a -tzip "${PKG_DIR}.zip" "$PKG_DIR" > /dev/null
-            echo "PKG=${PKG_DIR}.zip" >> "$GITHUB_ENV"
-          else
-            tar czf "${PKG_DIR}.tar.gz" "$PKG_DIR"
-            echo "PKG=${PKG_DIR}.tar.gz" >> "$GITHUB_ENV"
-          fi
+          tar czf "${PKG_DIR}.tar.gz" "$PKG_DIR"
+          echo "PKG=${PKG_DIR}.tar.gz" >> "$GITHUB_ENV"
 
       - name: Publish to release
         if: startsWith(github.ref, 'refs/tags/')
@@ -141,11 +97,11 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "newsroom ${GITHUB_REF_NAME}" \
             --verify-tag \
-            --notes "Standalone binaries for macOS (arm64), Linux (x86_64) and Windows (x86_64).
+            --notes "Standalone binaries for macOS (arm64) and Linux (x86_64).
 
           Unpack the archive and run \`newsroom\`, then open http://127.0.0.1:3000. The first run writes its config to \`~/.config/newsroom\`, and \`config.example.edn\` shows every option. The default model is DeepSeek, which reads \`DEEPSEEK_API_KEY\`.
 
-          Runtime libraries: Linux needs sqlite3, libxml2 and OpenSSL 3, which most distributions have. macOS needs OpenSSL 3 (\`brew install openssl@3\`). The Windows archive carries its own.
+          Runtime libraries: Linux needs sqlite3, libxml2 and OpenSSL 3, which most distributions have. macOS needs OpenSSL 3 (\`brew install openssl@3\`).
 
           The macOS binary is unsigned, so clear the quarantine flag before the first run: \`xattr -d com.apple.quarantine ./newsroom\`." \
             || echo "release already exists, uploading asset"
