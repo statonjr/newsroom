@@ -29,8 +29,8 @@
         ;; clojure.xml over libxml2, for RSS and Atom
         jolt-lang/xml
         {:git/url "https://github.com/jolt-lang/xml"
-         :git/tag "v0.0.3"
-         :git/sha "90706d59f7c3d6ec2b3f754ec88399650ce1934e"}
+         :git/tag "v0.0.4"
+         :git/sha "688914b2805a9f1316d4c83572959f7631b9cbfd"}
 
         ;; datastar wire protocol, SSE re-render on ratom change
         jolt-lang/glimmer-datastar
