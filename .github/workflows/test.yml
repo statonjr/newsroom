@@ -42,17 +42,12 @@ jobs:
 
       - name: Put the MSYS2 libraries on PATH (Windows)
         if: runner.os == 'Windows'
+        # GITHUB_PATH takes the entry as written, and Windows programs can't
+        # read the /d/... form bash prints, so it gets the Windows path
         run: |
           bin="$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')/mingw64/bin"
-          ls "$bin" | grep -Ei 'xml2|sqlite|ssl|crypto|zlib|iconv|lzma' || true
-          echo "$bin" >> "$GITHUB_PATH"
-
-      - name: Check the libraries resolve (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          echo %PATH%
-          where libxml2-16.dll libxml2-2.dll libsqlite3-0.dll libcrypto-3-x64.dll
+          ls "$bin" | grep -Ei 'xml2|sqlite|ssl|crypto|zlib|iconv' || true
+          cygpath -w "$bin" >> "$GITHUB_PATH"
 
       # Latest jolt by default; the JOLT_PIN repository variable pins one.
       - name: Resolve jolt version
