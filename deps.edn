@@ -23,8 +23,8 @@
         ;; sqlite through the system libsqlite3
         jolt-lang/db
         {:git/url "https://github.com/jolt-lang/db"
-         :git/tag "v0.4.0"
-         :git/sha "d85f391ca521da389b935c38f3d78b30eaa23208"}
+         :git/tag "v0.4.1"
+         :git/sha "067f95e23ea8e1117052762e97d63436d2c6c259"}
 
         ;; clojure.xml over libxml2, for RSS and Atom
         jolt-lang/xml
@@ -59,11 +59,10 @@
          :git/sha "b6b12097ba973141fe87c1b4d6a27ddcce5d5929"}}
 
  ;; ring-chez-adapter binds sockets through the process's own libc symbols.
- ;; jolt-lang/db and jolt-lang/xml declare sqlite3 and libxml2 for macOS and
- ;; Linux only; jolt folds these :windows names into their declarations. The
- ;; Windows release ships the MSYS2 builds of both next to newsroom.exe.
+ ;; jolt-lang/xml declares libxml2 for macOS and Linux only; jolt folds this
+ ;; :windows name into its declaration. The Windows release ships the MSYS2
+ ;; builds of libxml2 and sqlite next to newsroom.exe.
  :jolt/native [{:name "libc (POSIX sockets)" :process true}
-               {:name "sqlite3" :windows ["libsqlite3-0.dll" "sqlite3.dll" "winsqlite3.dll"]}
                {:name "xml2" :windows ["libxml2-16.dll" "libxml2-2.dll" "libxml2.dll"]}]
 
  :jolt/build {:embed ["resources"]}

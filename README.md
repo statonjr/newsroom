@@ -2,6 +2,8 @@
 
 Newsroom reads the day's news from a bunch of RSS feeds and web searches, then hands the stories to an LLM that writes a briefing about them. The briefing covers politics, economics, and science and tech, but what it really cares about is how those push on each other. When tariffs go up, or bond yields climb, or a lab in one country pulls ahead, the briefing tries to trace what happens next. Every claim links back to the story it came from, so you can always check what the model is telling you.
 
+![A day's briefing in newsroom, with the archive and the run desk in the sidebar](img/newsroom.jpg)
+
 The sources lean global on purpose. Western outlets sit next to Al Jazeera, CGTN, Global Times, Xinhua and a few others, since a single set of papers tends to tell a single story.
 
 It's written in Clojure and runs on [jolt](https://github.com/jolt-lang/jolt).
