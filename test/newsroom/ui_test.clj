@@ -103,6 +103,16 @@
         (is (str/includes? page "datastar-selector=%23sidebar"))
         (is (str/includes? page "datastar-selector=%23article"))))))
 
+(deftest the-page-starts-over-plain-http
+  ;; crypto.randomUUID is missing outside a secure context, so a page read at
+  ;; http://<lan address> threw from the sidebar's signals and the article's
+  ;; stream never opened: a finished run's briefing didn't show until reload
+  (with-store
+    (fn [st]
+      (let [page (ui/page st "2026-09-30")]
+        (is (not (re-find #"(?<!\? )self\.crypto\.randomUUID\(\)" page))
+            "randomUUID is only called where it exists")))))
+
 (deftest the-server-binds-where-the-config-says
   (is (= {:host "127.0.0.1" :port 3000 :strategy :fibers} (core/server-opts {}))
       "loopback on 3000 unless told otherwise")
