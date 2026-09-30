@@ -70,6 +70,16 @@
           sse-request (html (str (h/html (ui/fragment st day (:jolt.datastar/selector req)))))
           :else (html (ui/page st day)))))))
 
+(defn server-opts
+  "How the server listens: :host (an IPv4 address, loopback unless the config
+  says otherwise; \"0.0.0.0\" for every interface) and :port from config.edn.
+  Fibers rather than a thread per connection, since every open tab holds an
+  SSE stream."
+  [cfg]
+  {:host (:host cfg "127.0.0.1")
+   :port (:port cfg 3000)
+   :strategy :fibers})
+
 (defn start!
   "Open the store, load plugins, start the schedule and the server."
   []
@@ -81,11 +91,10 @@
         pruned (pipeline/prune-days! (ctx))
         schedule (pipeline/start-schedule! (ctx))
         handler (ds/wrap-datastar app {:rate-limit-ms 200})
-        ;; fibers: every open tab holds an SSE stream
-        server (adapter/run-server handler {:port (:port cfg 3000) :strategy :fibers})]
+        {:keys [host port] :as opts} (server-opts cfg)
+        server (adapter/run-server handler opts)]
     (swap! system assoc :schedule schedule :server server)
-    (println (str "newsroom on http://127.0.0.1:" (:port cfg 3000)
-                  "  (config: " (config/home) ")"))
+    (println (str "newsroom on http://" host ":" port "  (config: " (config/home) ")"))
     (doseq [{:keys [plugin ok]} plugins :when ok]
       (println "loaded plugin" plugin))
     (when (seq pruned)

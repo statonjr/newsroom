@@ -102,3 +102,9 @@
       (let [page (ui/page st "2026-09-30")]
         (is (str/includes? page "datastar-selector=%23sidebar"))
         (is (str/includes? page "datastar-selector=%23article"))))))
+
+(deftest the-server-binds-where-the-config-says
+  (is (= {:host "127.0.0.1" :port 3000 :strategy :fibers} (core/server-opts {}))
+      "loopback on 3000 unless told otherwise")
+  (is (= {:host "0.0.0.0" :port 8080 :strategy :fibers}
+         (core/server-opts {:host "0.0.0.0" :port 8080}))))

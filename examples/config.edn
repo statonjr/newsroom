@@ -1,7 +1,12 @@
 ;; A sample ~/.config/newsroom/config.edn showing every option. Keys you leave
 ;; out take the defaults in resources/defaults/config.edn, so a real config
 ;; can be much shorter than this.
-{:port 3000
+{;; The interface the page is served on, as an IPv4 address. The default is
+ ;; loopback, so only this machine can reach it; "0.0.0.0" listens on every
+ ;; interface. There's no login, so anyone who can reach the port can read the
+ ;; briefings and start or cancel a run.
+ :host "127.0.0.1"
+ :port 3000
 
  ;; When the daily briefing runs, local time. nil turns the schedule off and
  ;; leaves only the refresh button.

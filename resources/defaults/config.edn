@@ -3,7 +3,11 @@
 ;; prompt.md next to this file is the analysis prompt. {{date}} is the day
 ;; being analysed and {{sources}} the numbered list of gathered items; if the
 ;; prompt has no {{sources}}, the list is appended after it.
-{:port 3000
+{;; where the page is served; "0.0.0.0" listens on every interface, which
+ ;; lets other machines reach it, refresh button included, since there's no
+ ;; login
+ :host "127.0.0.1"
+ :port 3000
 
  ;; the daily briefing runs at this local time while the server is up;
  ;; nil turns the schedule off (the refresh button still works)
