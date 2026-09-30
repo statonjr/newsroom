@@ -4,6 +4,7 @@ on:
   push:
     branches: ['**']
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -41,7 +42,17 @@ jobs:
 
       - name: Put the MSYS2 libraries on PATH (Windows)
         if: runner.os == 'Windows'
-        run: echo "$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')/mingw64/bin" >> "$GITHUB_PATH"
+        run: |
+          bin="$(cygpath -u '${{ steps.msys2.outputs.msys2-location }}')/mingw64/bin"
+          ls "$bin" | grep -Ei 'xml2|sqlite|ssl|crypto|zlib|iconv|lzma' || true
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - name: Check the libraries resolve (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          echo %PATH%
+          where libxml2-16.dll libxml2-2.dll libsqlite3-0.dll libcrypto-3-x64.dll
 
       # Latest jolt by default; the JOLT_PIN repository variable pins one.
       - name: Resolve jolt version
