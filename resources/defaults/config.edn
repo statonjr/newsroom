@@ -2,16 +2,21 @@
 ;;
 ;; prompt.md next to this file is the analysis prompt. {{date}} is the day
 ;; being analysed and {{sources}} the numbered list of gathered items; if the
-;; prompt has no {{sources}}, the list is appended after it.
+;; prompt has no {{sources}}, the list is appended after it. {{previous}} is
+;; the overview of the last briefing, which the model builds on; without it in
+;; the prompt, it goes just before the sources.
 {;; where the page is served; "0.0.0.0" listens on every interface, which
  ;; lets other machines reach it, refresh button included, since there's no
  ;; login
  :host "127.0.0.1"
  :port 3000
 
- ;; the daily briefing runs at this local time while the server is up;
- ;; nil turns the schedule off (the refresh button still works)
+ ;; the briefing is gathered at this local time while the server is up,
+ ;; then again every :run-every-hours after it, re-gathering when the day's
+ ;; briefing is that old; nil turns the schedule off (the refresh button
+ ;; still works)
  :run-at "07:00"
+ :run-every-hours 24
 
  ;; items older than this many days before the briefing's day are skipped;
  ;; undated items are always kept, and so are items dated the day after,

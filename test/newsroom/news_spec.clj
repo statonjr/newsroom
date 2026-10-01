@@ -14,7 +14,7 @@
   values, so duplicates are common: a story is keyed by a small number, and
   the same story comes back with a fragment or tracking parameters on it."
   (:require [clojure.string :as str]
-            [newsroom.news :refer [canonical-url dedupe-items cite render-prompt
+            [newsroom.news :refer [canonical-url dedupe-items unseen-items overview add-previous cite render-prompt
                                    citations link-citations briefing
                                    valid-day? adjacent-days]]
             [writ.spec :refer [spec ann refine graph flow law calls assume]]))
@@ -39,6 +39,9 @@
 
 (ann canonical-url  [String -> String])
 (ann dedupe-items   [(List Item) -> (List Item)])
+(ann unseen-items   [(List Item) (List Item) -> (List Item)])
+(ann overview       [String -> (Opt String)])
+(ann add-previous   [String (Opt String) -> String])
 (ann cite           [(List Item) -> (List Source)])
 (ann render-prompt  [String String (List Source) -> String])
 (ann citations      [String -> (Vec Nat)])
@@ -173,6 +176,80 @@
          (= [] (dedupe-items [(assoc (story n t 0) :url "")])))))
 
 (law nothing-gathered-nothing-kept (= [] (dedupe-items [])))
+
+;; --- what the last briefing already had --------------------------------------------
+
+(defn yesterdays
+  "Stories that can't collide with `stories` by URL or by title."
+  [ms]
+  (mapv (fn [n] (assoc (story (+ 1000000 n) "x" 0) :title (str "Yesterday's story number " n)))
+        ms))
+
+(law with-no-earlier-briefing-everything-is-new
+  (forall [ns (List Nat), ts (List String)]
+    (= (stories ns ts) (unseen-items (stories ns ts) []))))
+
+(law a-story-in-the-last-briefing-is-left-out
+  (forall [ns (List Nat), ts (List String)]
+    (= [] (unseen-items (stories ns ts) (stories ns ts)))))
+
+(law other-stories-are-kept-in-order
+  (forall [ns (List Nat), ts (List String), ms (List Nat)]
+    (= (stories ns ts) (unseen-items (stories ns ts) (yesterdays ms)))))
+
+(law the-same-headline-at-another-address-is-the-same-story
+  (forall [n Nat, m Nat]
+    (= [] (unseen-items [(assoc (story n "a" 0) :title "Tariffs rise again on steel imports")]
+                        [(assoc (story (+ 1000000 m) "b" 0) :title "Tariffs Rise Again on Steel Imports!")]))))
+
+(law a-short-headline-is-not-enough-to-match
+  (forall [n Nat, m Nat]
+    (= 1 (count (unseen-items [(assoc (story n "a" 0) :title "Live updates")]
+                              [(assoc (story (+ 1000000 m) "b" 0) :title "Live updates")])))))
+
+;; --- building on the last briefing ----------------------------------------------
+
+(defn briefing-doc [title overview-text rest-text]
+  (str "# " title "\n\n## Overview\n\n" overview-text "\n\n## Politics\n\n" rest-text
+       "\n\n## Sources\n\n1. [x](https://e.com/1)\n"))
+
+(law the-overview-is-the-first-section
+  (forall [a String, b String]
+    (= (str "Opening " (alnum a) ".")
+       (overview (briefing-doc "Day" (str "Opening " (alnum a) ".") (str "Later " (alnum b) "."))))))
+
+(law the-overview-loses-its-citations
+  (forall [n Nat, m Nat]
+    (= "A claim. Another one."
+       (overview (briefing-doc "Day" (str "A claim [[" n "]](https://e.com/" n "), [[" m "]](https://e.com/x)."
+                                          " Another one [" n ", " m "].")
+                               "x")))))
+
+(law a-briefing-with-no-sections-has-no-overview
+  (forall [a String]
+    (nil? (overview (str "# Just a title " (alnum a))))))
+
+(law the-last-briefing-goes-where-the-template-says
+  (forall [a String, b String, c String]
+    (= (str (alnum a) " " (alnum c) " " (alnum b) " {{sources}}")
+       (add-previous (str (alnum a) " {{previous}} " (alnum b) " {{sources}}") (alnum c)))))
+
+(law without-a-place-it-goes-before-the-sources
+  (forall [a String, b String, c String]
+    (= (str (alnum a) " " (alnum c) "\n\n{{sources}} " (alnum b))
+       (add-previous (str (alnum a) " {{sources}} " (alnum b)) (alnum c)))))
+
+(law with-neither-place-it-goes-at-the-end
+  (forall [a String, c String]
+    (= (str (alnum a) "\n\n" (alnum c))
+       (add-previous (alnum a) (alnum c)))))
+
+(law without-a-last-briefing-only-the-place-is-dropped
+  (forall [a String, b String]
+    (and (= (str (alnum a) "  " (alnum b) " {{sources}}")
+            (add-previous (str (alnum a) " {{previous}} " (alnum b) " {{sources}}") nil))
+         (= (str (alnum a) " {{sources}}")
+            (add-previous (str (alnum a) " {{sources}}") nil)))))
 
 ;; --- citing ------------------------------------------------------------------------
 

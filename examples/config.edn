@@ -8,9 +8,12 @@
  :host "127.0.0.1"
  :port 3000
 
- ;; When the daily briefing runs, local time. nil turns the schedule off and
- ;; leaves only the refresh button.
+ ;; When the briefing is gathered, local time, and how many hours apart after
+ ;; that. A wake re-gathers the day only when its briefing is at least that
+ ;; old, so 24 gives one a day and 6 refreshes it through the day. nil for
+ ;; :run-at turns the schedule off and leaves only the refresh button.
  :run-at "07:00"
+ :run-every-hours 24
 
  ;; Days of briefings to keep. Older days are deleted with their sources and
  ;; markdown files after each new briefing. -1 keeps everything.

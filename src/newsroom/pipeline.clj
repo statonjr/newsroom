@@ -177,6 +177,25 @@
         (when (.exists f) (.delete f))))
     gone))
 
+(defn- previous-day
+  "The latest briefing stored before `day`, or nil."
+  [store day]
+  (some->> (store/days store)
+           (filter #(neg? (compare % day)))
+           first
+           (store/day store)))
+
+(defn- previous-context
+  "What the model is told about the last briefing: its overview, as what is
+  already established and to be built on rather than told again."
+  [day overview]
+  (str "## Already established\n\n"
+       "This is the overview of the last briefing, for " (sources/long-date day) ". Take it as what "
+       "the reader already knows. Don't retell it. Build on it, say what today's news changes, "
+       "confirms or overturns, and follow up threads it left open. Its citations belong to that "
+       "day's sources, so cite only today's numbered sources below.\n\n"
+       overview))
+
 (defn run-task
   "Task: gather, analyse and store `day`. Completes with the stored day's
   summary; fails when nothing was gathered or the model call fails.
@@ -201,16 +220,29 @@
             _ (log! run-id {:text (str "Gathered " (reduce + (map (comp count :items) results))
                                        " items from " (count (remove :error results)) " of "
                                        (count srcs) " sources")})
-            numbered (->> (day-items results config day)
-                          news/dedupe-items
-                          (take (:max-items config 80))
-                          news/cite)
+            gathered (news/dedupe-items (day-items results config day))
+            earlier (previous-day store day)
+            fresh (news/unseen-items gathered (:sources earlier))
+            _ (when (< (count fresh) (count gathered))
+                (log! run-id {:text (str "Left out " (- (count gathered) (count fresh))
+                                         " stories already in the briefing for "
+                                         (sources/long-date (:day earlier)))}))
+            numbered (->> fresh (take (:max-items config 80)) news/cite)
             _ (when (empty? numbered)
-                (throw (ex-info "no items were gathered from any source" {})))
+                (throw (ex-info (if (seq gathered)
+                                  (str "every story gathered was already in the briefing for "
+                                       (sources/long-date (:day earlier)))
+                                  "no items were gathered from any source")
+                                {})))
             _ (log! run-id {:text (str (count numbered) " stories to analyse after dropping"
                                        " duplicates and older items")})
             llm-config (providers/role-llm config :analyst)
-            prompt (news/render-prompt (or (:template ctx) (config/prompt-template))
+            established (some-> (:markdown earlier) news/overview)
+            _ (when established
+                (log! run-id {:text (str "Building on the briefing for " (sources/long-date (:day earlier)))}))
+            prompt (news/render-prompt (news/add-previous (or (:template ctx) (config/prompt-template))
+                                                          (some->> established
+                                                                   (previous-context (:day earlier))))
                                        (str (sources/long-date day) " (" day ")")
                                        numbered)
             _ (update-status! run-id assoc :state :analysing :items (count numbered)
@@ -279,41 +311,77 @@
     true))
 
 ;; --- the schedule ------------------------------------------------------------------
+;; The first run is at :run-at, local time, and the next ones every
+;; :run-every-hours after it (a day by default). Wake times are worked out
+;; from the clock rather than by adding up sleeps, so they don't drift, and a
+;; wake missed while the machine slept is skipped rather than made up.
 
-(defn- ms-until
-  "Milliseconds from now until the next local HH:MM."
+(def ^:private hour-ms (* 60 60 1000))
+
+(defn interval-ms
+  "How long the schedule sleeps between runs: :run-every-hours, a day by
+  default."
+  [config]
+  (let [h (:run-every-hours config 24)]
+    (when-not (and (number? h) (pos? h))
+      (throw (ex-info (str ":run-every-hours has to be a positive number of hours, not " (pr-str h))
+                      {:run-every-hours h})))
+    (long (* h hour-ms))))
+
+(defn next-wake
+  "The first wake after `now`: `anchor`, today's :run-at, plus or minus a
+  whole number of intervals. Times are epoch milliseconds."
+  [anchor interval now]
+  (+ anchor (* interval (inc (long (Math/floor (/ (- now anchor) (double interval))))))))
+
+(def ^:private early-ms
+  "How early a timer may fire and still find a briefing an interval old."
+  60000)
+
+(defn due?
+  "Whether a wake should gather: there is no briefing for today, `age` is
+  nil, or it is an interval old. One run by hand an hour before a daily wake
+  makes that wake unnecessary."
+  [age interval]
+  (or (nil? age) (>= age (- interval early-ms))))
+
+(defn- anchor-ms
+  "Today's :run-at as an instant."
   [hh-mm]
-  (let [at (java.time.LocalTime/parse hh-mm)
-        zone (java.time.ZoneId/systemDefault)
-        today-at (java.time.LocalDateTime/of (java.time.LocalDate/now) at)
-        next-at (if (.isAfter (java.time.LocalDateTime/now) today-at)
-                  (.plusDays today-at 1)
-                  today-at)]
-    (max 1000 (- (.toEpochMilli (.toInstant (.atZone next-at zone))) (now)))))
+  (-> (java.time.LocalDateTime/of (java.time.LocalDate/now) (java.time.LocalTime/parse hh-mm))
+      (.atZone (java.time.ZoneId/systemDefault))
+      .toInstant
+      .toEpochMilli))
 
-(defn- past-today? [hh-mm]
-  (.isAfter (java.time.LocalTime/now) (java.time.LocalTime/parse hh-mm)))
+(defn- day-of [ms]
+  (str (.toLocalDate (.atZone (java.time.Instant/ofEpochMilli ms) (java.time.ZoneId/systemDefault)))))
 
-(defn- run-if-missing! [{:keys [store] :as ctx} day]
-  (when-not (store/day store day)
-    (start-run! ctx day)))
+(defn- run-if-due! [{:keys [store] :as ctx} interval]
+  (let [day (today)
+        created (some-> (store/day store day) :created-at java.time.Instant/parse .toEpochMilli)]
+    (when (due? (some->> created (- (now))) interval)
+      (start-run! ctx day))))
 
 (defn schedule-task
-  "Task: run today's briefing at :run-at every day, and once at start when
-  the time has passed and today has none yet. Runs until cancelled."
+  "Task: run today's briefing at :run-at and every :run-every-hours after,
+  and once at start when a run was due today and hasn't happened. Runs until
+  cancelled."
   [{:keys [config] :as ctx}]
-  (let [run-at (:run-at config)]
+  (let [run-at (:run-at config)
+        interval (interval-ms config)]
     (m/sp
-      (when (past-today? run-at)
-        (run-if-missing! ctx (today)))
-      (loop []
-        (m/? (m/sleep (ms-until run-at)))
-        (run-if-missing! ctx (today))
-        (recur)))))
+      (let [last-wake (- (next-wake (anchor-ms run-at) interval (now)) interval)]
+        (when (= (today) (day-of last-wake))
+          (run-if-due! ctx interval)))
+      (loop [after (now)]
+        (let [at (next-wake (anchor-ms run-at) interval after)]
+          (m/? (m/sleep (max 1000 (- at (now)))))
+          (run-if-due! ctx interval)
+          (recur (max at (now))))))))
 
 (defn start-schedule!
-  "Start the daily schedule; returns its canceller, or nil when :run-at is
-  not set."
+  "Start the schedule; returns its canceller, or nil when :run-at is not
+  set."
   [{:keys [config] :as ctx}]
   (when (:run-at config)
     ((schedule-task ctx)

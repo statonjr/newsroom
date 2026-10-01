@@ -16,7 +16,9 @@ The [releases](https://github.com/yogthos/newsroom/releases) page has builds for
 jolt serve
 ```
 
-Open http://127.0.0.1:3000 and you'll get a page for today with the archive in the sidebar. On the first start it writes a default setup to `~/.config/newsroom`, and if today doesn't have a briefing yet it goes and gathers one right away. You can watch that happen, since the sidebar shows each feed it reads and each search it runs while the model thinks and writes. After that it runs every morning at the time you set, and the button in the sidebar gets you a fresh one whenever you want.
+Open http://127.0.0.1:3000 and you'll get a page for today with the archive in the sidebar. On the first start it writes a default setup to `~/.config/newsroom`. If the day's scheduled time has already passed and there's no briefing for today, it goes and gathers one right away, and you can watch that happen, since the sidebar shows each feed it reads and each search it runs while the model thinks and writes. After that it runs every morning at the time set in `:run-at`, 07:00 by default, and the button in the sidebar gets you a fresh one whenever you want. `:run-every-hours` sets how far apart the runs are, a day by default, so something like 6 refreshes the day's briefing through the day.
+
+Each briefing picks up where the last one left off. Stories that were already in the previous briefing are left out, matched by their address or by their headline, since the same wire story often turns up at a new URL the next day. The model also gets the previous briefing's overview as what's already been established, so it writes about what changed instead of retelling yesterday. If you've edited `prompt.md`, `{{previous}}` marks where that overview goes, and without it it goes just before the sources.
 
 The model needs an API key. DeepSeek is the default and reads `DEEPSEEK_API_KEY`, though GLM, OpenAI, Ollama and a local llama.cpp server work just as well.
 

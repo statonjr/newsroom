@@ -1,8 +1,9 @@
 (ns newsroom.news
   "The pure core of a day's briefing: no IO, no clock, no storage.
 
-  Items gathered from every source are deduplicated by their canonical URL
-  and numbered as sources; the numbered sources are written into the
+  Items gathered from every source are deduplicated by their canonical URL,
+  those the last briefing already had are left out, and the rest are
+  numbered as sources; the numbered sources are written into the
   analysis prompt; the model's markdown answer cites them as [n], and
   `briefing` links those citations and appends the sources the answer cited.
   The contract is test/newsroom/news_spec.clj."
@@ -48,6 +49,31 @@
                  [[] #{}]
                  items)))
 
+(def ^:private min-title-chars
+  "How long a headline has to be, normalised, to identify a story by itself:
+  a short one like \"Live updates\" is used for different stories every day."
+  24)
+
+(defn- title-key
+  "A headline as it identifies a story across outlets and URLs: lower case,
+  punctuation and spacing evened out. nil when it is too short to rely on."
+  [title]
+  (let [k (str/trim (str/replace (str/lower-case (str title)) #"[^\p{L}\p{N}]+" " "))]
+    (when (>= (count k) min-title-chars) k)))
+
+(defn unseen-items
+  "The items that weren't among `earlier`, the last briefing's sources, in
+  the order they came. A story counts as seen when its canonical URL or its
+  headline matches one of them, since the same wire story turns up at a new
+  address the next day."
+  [items earlier]
+  (let [urls (set (map (comp canonical-url :url) earlier))
+        titles (set (keep (comp title-key :title) earlier))]
+    (filterv (fn [item]
+               (not (or (contains? urls (canonical-url (:url item)))
+                        (contains? titles (title-key (:title item))))))
+             items)))
+
 (defn cite
   "The items as sources, numbered from 1 in order: the numbers the analysis
   cites them by."
@@ -65,6 +91,50 @@
 
 (defn- source-block [sources]
   (str/join "\n\n" (map source-line sources)))
+
+(def ^:private overview-chars
+  "About how much of the last briefing's overview the model gets: a few
+  paragraphs, cut at a paragraph."
+  4000)
+
+(defn- strip-citations
+  "Text with its citations gone, linked ([[3]](url)) or not ([3, 7]): the
+  numbers belong to that day's sources and mean nothing in another prompt."
+  [text]
+  (-> text
+      (str/replace #"\s*\[\[\d+\]\]\([^)\s]*\)(,\s*\[\[\d+\]\]\([^)\s]*\))*" "")
+      (str/replace #"\s*\[\d+(,\s*\d+)*\]" "")))
+
+(defn overview
+  "The first section of a briefing, its overview, without citations and cut
+  to a few paragraphs: what the next day's briefing can take as established.
+  nil when the briefing has no sections."
+  [markdown]
+  (let [body (->> (str/split-lines (str markdown))
+                  (drop-while #(not (re-find #"^## " %)))
+                  rest
+                  (take-while #(not (re-find #"^#{1,2} " %))))
+        paragraphs (remove str/blank? (map str/trim (str/split (strip-citations (str/join "\n" body))
+                                                              #"\n\s*\n")))
+        kept (reduce (fn [acc p]
+                       (if (and (seq acc) (> (+ (count (str/join "\n\n" acc)) (count p)) overview-chars))
+                         (reduced acc)
+                         (conj acc p)))
+                     [] paragraphs)]
+    (when (seq kept) (str/join "\n\n" kept))))
+
+(defn add-previous
+  "The template with `previous`, text about the last briefing, at its
+  {{previous}}, or just before {{sources}} when it has no place for it, or at
+  the end when it has neither. Without `previous` the template is unchanged
+  but for an empty {{previous}}."
+  [template previous]
+  (cond
+    (nil? previous) (str/replace template "{{previous}}" "")
+    (str/includes? template "{{previous}}") (str/replace template "{{previous}}" previous)
+    (str/includes? template "{{sources}}") (str/replace template "{{sources}}"
+                                                        (str previous "\n\n{{sources}}"))
+    :else (str template "\n\n" previous)))
 
 (defn render-prompt
   "The template with {{date}} and {{sources}} filled in. A template with no

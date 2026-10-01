@@ -164,3 +164,77 @@
     (is (not (pipeline/running?)))
     (is (= :cancelled (:state @pipeline/status)))
     (is (nil? (store/day (:store c) "2026-09-30")))))
+
+(deftest stories-in-the-last-briefing-are-left-out
+  (let [c (assoc-in (ctx [{:type ::fixture :name "A" :ns [1 2 3]}]
+                         (fn [_ _] {:content "# Today\n\nTwo [1]." :model "fake"}))
+                    [:config :max-items-per-source] 3)
+        st (:store c)
+        source (fn [n url] {:n n :title (str "Old " n) :url url :source "Fixture" :summary "" :published nil})]
+    ;; the latest briefing before the day, however far back
+    (store/save-day! st {:day "2026-09-27" :sources [(source 1 "https://e.com/1?utm_source=rss")
+                                                     (source 2 "https://e.com/3/")]
+                         :cited [] :markdown "old" :model "m" :provider "p"})
+    ;; a later day is not the last briefing
+    (store/save-day! st {:day "2026-10-02" :sources [(source 1 "https://e.com/2")]
+                         :cited [] :markdown "later" :model "m" :provider "p"})
+    (m/? (pipeline/run-task c "2026-09-30"))
+    (is (= ["https://e.com/2"] (map :url (:sources (store/day st "2026-09-30")))))
+    (is (some #(str/includes? (:text %) "Left out 2 stories already in the briefing for 27 September 2026")
+              (:events @pipeline/status)))))
+
+(deftest a-day-of-nothing-new-says-so
+  (let [c (ctx [{:type ::fixture :name "A" :ns [1]}] (fn [_ _] {:content "x" :model "fake"}))]
+    (store/save-day! (:store c) {:day "2026-09-29" :sources [{:n 1 :title "Story 1" :url "https://e.com/1"
+                                                              :source "Fixture" :summary "" :published nil}]
+                                 :cited [] :markdown "old" :model "m" :provider "p"})
+    (let [e (try (m/? (pipeline/run-task c "2026-09-30")) nil (catch Exception e e))]
+      (is (str/includes? (ex-message e) "already in the briefing for 29 September 2026")))))
+
+;; --- the schedule ----------------------------------------------------------------
+
+(def ^:private hour (* 60 60 1000))
+
+(deftest the-schedule-wakes-at-run-at-then-every-interval
+  (let [seven 1000000000000]               ; today's :run-at, as an instant
+    (testing "a day apart: the next run-at"
+      (is (= seven (pipeline/next-wake seven (* 24 hour) (- seven (* 5 hour)))))
+      (is (= (+ seven (* 24 hour)) (pipeline/next-wake seven (* 24 hour) (+ seven 1)))))
+    (testing "six hours apart, counted from run-at either way"
+      (is (= (- seven (* 6 hour)) (pipeline/next-wake seven (* 6 hour) (- seven (* 7 hour)))))
+      (is (= (+ seven (* 12 hour)) (pipeline/next-wake seven (* 6 hour) (+ seven (* 7 hour))))))
+    (testing "a wake exactly at a slot looks for the next one"
+      (is (= (+ seven (* 6 hour)) (pipeline/next-wake seven (* 6 hour) seven))))))
+
+(deftest a-wake-gathers-unless-the-briefing-is-fresh
+  (is (pipeline/due? nil (* 24 hour)) "no briefing yet")
+  (is (not (pipeline/due? hour (* 24 hour))) "run by hand an hour before")
+  (is (pipeline/due? (* 6 hour) (* 6 hour)) "a whole interval old")
+  (is (pipeline/due? (- (* 6 hour) 1000) (* 6 hour)) "a timer firing a moment early still counts"))
+
+(deftest the-interval-comes-from-the-config
+  (is (= (* 24 hour) (pipeline/interval-ms {})) "a day by default")
+  (is (= (* 6 hour) (pipeline/interval-ms {:run-every-hours 6})))
+  (is (= (* 90 60 1000) (pipeline/interval-ms {:run-every-hours 1.5})))
+  (is (thrown? Exception (pipeline/interval-ms {:run-every-hours 0})))
+  (is (thrown? Exception (pipeline/interval-ms {:run-every-hours "6"}))))
+
+(deftest the-model-builds-on-the-last-briefing
+  (let [prompts (atom [])
+        c (ctx [{:type ::fixture :name "A" :ns [5]}]
+               (fn [_ req] (swap! prompts conj (-> req :messages first :content))
+                 {:content "# Today\n\nNew [1]." :model "fake"}))]
+    (store/save-day! (:store c) {:day "2026-09-29" :sources []
+                                 :cited [] :model "m" :provider "p"
+                                 :markdown (str "# Yesterday\n\n## Overview\n\nTariffs went up [[3]](https://e.com/3)."
+                                                "\n\n## Politics\n\nDetail that stays out.")})
+    (m/? (pipeline/run-task c "2026-09-30"))
+    (let [p (first @prompts)]
+      (is (str/includes? p "29 September 2026"))
+      (is (str/includes? p "Tariffs went up."))
+      (is (not (str/includes? p "Detail that stays out")))
+      (is (not (str/includes? p "e.com/3")) "yesterday's citations don't come along")
+      (is (< (str/index-of p "Tariffs went up") (str/index-of p "[1] Story 5"))
+          "the context comes before today's sources"))
+    (is (some #(str/includes? (:text %) "Building on the briefing for 29 September 2026")
+              (:events @pipeline/status)))))
