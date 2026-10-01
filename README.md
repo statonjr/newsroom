@@ -26,6 +26,19 @@ Everything you'd want to change lives in `~/.config/newsroom`. The sources, sche
 
 Each day goes into a sqlite database and gets written out as a markdown file in `briefings/` too. Only the last 100 days are kept, which stops a long-running server from slowly eating the disk, and you can set `:keep-days` to -1 if you'd rather keep everything.
 
+All of that lives somewhere else when `NEWSROOM_HOME` is set, which is the way to run newsroom as a service. With `NEWSROOM_HOME=/var/newsroom` the config, prompt, plugins, database and briefings all go in `/var/newsroom`, and the first start writes the defaults there, so the service's user needs to be able to write to it. A systemd unit might look like this:
+
+```ini
+[Service]
+User=newsroom
+Environment=NEWSROOM_HOME=/var/newsroom
+EnvironmentFile=/etc/newsroom.env
+ExecStart=/usr/local/bin/newsroom
+Restart=on-failure
+```
+
+with the model's key, like `DEEPSEEK_API_KEY=...`, in `/etc/newsroom.env`. Set `:host` in the config if the page should be reachable from other machines.
+
 ## Plugins
 
 A plugin is a folder in `~/.config/newsroom/plugins/` holding Clojure namespaces named after it, so `plugins/slack/core.clj` is `slack.core`. Every namespace in the folder gets loaded when newsroom starts, and a plugin that fails to load is reported and skipped. A plugin small enough for one file can also be a single `plugins/<name>.clj`. Plugins are written against `newsroom.plugin`: `defsource` adds a source type, `config` returns the plugin's settings, `get-json` and `post-json` talk to JSON APIs, `fetch-text`, `parse-xml` and `page-meta` read feeds and article pages, and `item` builds the items a source hands back. `jolt.http-client` and `clojure.data.json` can be required directly for anything else.
