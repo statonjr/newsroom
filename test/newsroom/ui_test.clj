@@ -33,7 +33,7 @@
           (is (str/includes? page "href=\"/day/2026-09-29\">← Earlier"))
           (is (str/includes? page "29 September 2026")))
         (is (str/includes? page "deepseek / deepseek-v4-flash"))
-        (is (str/includes? page "mermaid.esm.min.mjs") "the page can draw diagrams")))))
+        (is (str/includes? page "src=\"/js/diagrams.js\"") "the page can draw diagrams")))))
 
 (deftest a-day-with-no-briefing
   (with-store
@@ -50,6 +50,15 @@
       (is (= 404 (:status (core/app {:uri "/day/2026-02-31" :request-method :get}))))
       (is (= 404 (:status (core/app {:uri "/day/2026-01-01.md" :request-method :get}))))
       (is (= 404 (:status (core/app {:uri "/nope" :request-method :get}))))
+      (testing "the page's scripts and stylesheet come from resources"
+        (doseq [[uri type text] [["/js/datastar.js" "application/javascript" "Datastar"]
+                                 ["/js/diagrams.js" "application/javascript" "mermaid"]
+                                 ["/css/style.css" "text/css; charset=utf-8" "--paper"]]]
+          (let [resp (core/app {:uri uri :request-method :get})]
+            (is (= 200 (:status resp)) uri)
+            (is (= type (get-in resp [:headers "Content-Type"])) uri)
+            (is (str/includes? (:body resp) text) uri)))
+        (is (= 404 (:status (core/app {:uri "/js/nope.js" :request-method :get})))))
       (reset! core/system nil))))
 
 (deftest a-run-in-progress-shows-what-it-is-doing

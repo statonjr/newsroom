@@ -37,6 +37,12 @@
 (defn- day-route [uri]
   (second (re-matches #"/day/(\d{4}-\d{2}-\d{2})(\.md)?" uri)))
 
+(def ^:private assets
+  "The files served from resources/public, by path, with their content type."
+  {"/js/datastar.js" "application/javascript"
+   "/js/diagrams.js" "application/javascript"
+   "/css/style.css"  "text/css; charset=utf-8"})
+
 (defn app [{:keys [uri request-method jolt.datastar/sse-request] :as req}]
   (let [st (:store @system)]
     (cond
@@ -53,10 +59,10 @@
       (and (= :post request-method) (= uri "/cancel"))
       (do (pipeline/cancel-run!) (ds/patch-signals {}))
 
-      (= uri "/js/datastar.js")
+      (assets uri)
       {:status 200
-       :headers {"Content-Type" "application/javascript" "Cache-Control" "max-age=86400"}
-       :body (slurp (io/resource "public/js/datastar.js"))}
+       :headers {"Content-Type" (assets uri) "Cache-Control" "max-age=86400"}
+       :body (slurp (io/resource (str "public" uri)))}
 
       :else
       (let [day (day-route uri)]
