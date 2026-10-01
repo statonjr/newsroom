@@ -12,9 +12,20 @@ It's written in Clojure and runs on [jolt](https://github.com/jolt-lang/jolt).
 
 The [releases](https://github.com/yogthos/newsroom/releases) page has builds for macOS and Linux, so you can grab one of those and run `newsroom` without installing anything else. Windows isn't there yet, since the web server it runs on doesn't support Windows sockets. From a checkout you'd run it with jolt instead.
 
+Running in dev mode from the repo:
+
 ```
 jolt serve
 ```
+
+Building and running your own binary:
+
+```
+jolt build -m newsroom.core -o newsroom
+./newsroom
+```
+
+Or grab a release binary.
 
 Open http://127.0.0.1:3000 and you'll get a page for today with the archive in the sidebar. On the first start it writes a default setup to `~/.config/newsroom`. If the day's scheduled time has already passed and there's no briefing for today, it goes and gathers one right away, and you can watch that happen, since the sidebar shows each feed it reads and each search it runs while the model thinks and writes. After that it runs every morning at the time set in `:run-at`, 07:00 by default, and the button in the sidebar gets you a fresh one whenever you want. `:run-every-hours` sets how far apart the runs are, a day by default, so something like 6 refreshes the day's briefing through the day.
 
