@@ -71,7 +71,7 @@ jobs:
           esac
           mkdir -p "$name"
           exe=newsroom
-          cp "$exe" README.md "$name/"
+          cp "$exe" README.md CHANGELOG.md "$name/"
           cp examples/config.edn "$name/config.example.edn"
           cp -r plugins "$name/plugins"
           echo "PKG_DIR=$name" >> "$GITHUB_ENV"
