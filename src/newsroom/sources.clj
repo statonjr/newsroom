@@ -49,7 +49,7 @@
   [source]
   (or (:name source) (default-name source)))
 
-(def default-user-agent "newsroom/0.3 (+https://github.com/yogthos/newsroom)")
+(def default-user-agent "newsroom/0.4 (+https://github.com/yogthos/newsroom)")
 
 (defn fetch-text
   "The body of `url` as text; throws on a status other than 2xx."
