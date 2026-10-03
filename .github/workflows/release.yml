@@ -78,12 +78,23 @@ jobs:
           echo "PKG_EXE=$exe" >> "$GITHUB_ENV"
 
       # Run the packaged binary, so a native library or embedded resource the
-      # build is missing fails here and not on a user's machine.
+      # build is missing fails here and not on a user's machine. The build's
+      # own dependency checkouts are hidden while it runs: a binary still
+      # finds a library's files there by the paths it was built from, which a
+      # user's machine doesn't have, and v0.5.0 shipped needing one.
       - name: Smoke test
         run: |
+          for d in "$HOME/.jolt/gitlibs" "$HOME/.m2"; do
+            if [ -d "$d" ]; then mv "$d" "$d.hidden"; fi
+          done
           cd "$PKG_DIR"
-          ../ci/smoke.sh "./$PKG_EXE"
+          status=0
+          ../ci/smoke.sh "./$PKG_EXE" || status=$?
           rm -f smoke.log
+          for d in "$HOME/.jolt/gitlibs" "$HOME/.m2"; do
+            if [ -d "$d.hidden" ]; then mv "$d.hidden" "$d"; fi
+          done
+          exit $status
 
       - name: Archive
         run: |

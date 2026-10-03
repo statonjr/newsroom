@@ -57,7 +57,10 @@
          :git/tag "0.20.1"
          :git/sha "13656199432c9fc44747212a0114f3c7c9a9fb4b"}
 
-;; the prompt templates
+;; the prompt templates. selmer.validator reads its
+        ;; selmer-error-template.html when it loads, and a built binary embeds
+        ;; only this project's resources (jolt-lang/jolt#1232), so a copy is in
+        ;; resources/
         selmer/selmer
         {:git/url "https://github.com/yogthos/Selmer"
          :git/tag "v1.13.5"
