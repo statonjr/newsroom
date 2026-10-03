@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- **secrets.edn.** Keys can be kept in `secrets.edn` in the config directory,
+  a map from each key's name to its value, instead of being exported in the
+  shell that starts newsroom. Whatever names a key, `:api-key-env`, a
+  `${VAR}` in a provider or a plugin's settings, or a built-in name like
+  `DEEPSEEK_API_KEY` or `EXA_API_KEY`, finds it there when the environment
+  doesn't have it; the environment wins when both do. The file is read once
+  at startup and never reaches the database or the export. Newsroom won't
+  start if users other than its owner can get at it, or if it isn't a map of
+  strings, and the error doesn't repeat what's in it.
+
 ### Changed
 
 - **The item cap is per outlet.** `:max-items-per-source` now caps each
