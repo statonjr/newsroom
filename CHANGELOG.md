@@ -1,16 +1,5 @@
 # Changelog
 
-## v0.5.1 — 3 October 2026
-
-### Fixed
-
-- **The v0.5.0 binaries didn't start** anywhere but the machine that built
-  them: `Cannot open <nil> as a Reader.` Selmer reads a template of its own
-  when it loads, and a built binary embeds only newsroom's resources, not its
-  dependencies' (jolt-lang/jolt#1232), so a copy now ships in `resources/`.
-  The release's smoke test now runs the binary with the build's dependency
-  checkouts hidden, so a file a binary can only find there fails the release.
-
 ## v0.5.0 — 3 October 2026
 
 Everything that can change while newsroom runs now lives in its database and
