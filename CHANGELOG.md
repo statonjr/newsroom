@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 3 October 2026
+
+Everything that can change while newsroom runs now lives in its database and
+is edited on a config page, where it takes effect without a restart. Sources
+are checked as they're added and read with timeouts and retries of their own.
+`config.edn` keeps only where the page is served and the database kept; an
+existing setup is moved over at the first start.
 
 ### Added
 
