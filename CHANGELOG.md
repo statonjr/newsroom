@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 — 3 October 2026
 
 Before the analyst writes the briefing, a researcher grounds it in history.
 It reads the day's stories together, with how long each has run and the
