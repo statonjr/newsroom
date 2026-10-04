@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.7.0 — 4 October 2026
 
 The briefing is no longer written from the raw reports in one pass. A desk
 works the day over first, in stages, each a narrower model call: it sorts

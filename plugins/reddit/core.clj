@@ -28,7 +28,7 @@
   Nothing is needed in the plugin's settings, though reddit turns some user
   agents away, so one can be set there:
 
-    :plugins {:reddit {:user-agent \"newsroom/0.6 (by /u/you)\"}}"
+    :plugins {:reddit {:user-agent \"newsroom/0.7 (by /u/you)\"}}"
   (:require [clojure.string :as str]
             [newsroom.plugin :as plugin]))
 
@@ -120,7 +120,7 @@
 (plugin/defsettings
   {:doc "Nothing is needed here."
    :fields [{:key :user-agent :type :string
-             :doc "The User-Agent sent to reddit, which turns some away, like newsroom/0.6 (by /u/you)."}]})
+             :doc "The User-Agent sent to reddit, which turns some away, like newsroom/0.7 (by /u/you)."}]})
 
 (plugin/defname :reddit [source]
   (if (:subreddit source) (str "r/" (subreddits source)) (:url source)))

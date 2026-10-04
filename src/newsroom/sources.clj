@@ -81,7 +81,7 @@
   [source]
   (or (:name source) (default-name source)))
 
-(def default-user-agent "newsroom/0.6 (+https://github.com/yogthos/newsroom)")
+(def default-user-agent "newsroom/0.7 (+https://github.com/yogthos/newsroom)")
 
 ;; --- the policy --------------------------------------------------------------------
 
