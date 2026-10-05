@@ -283,23 +283,41 @@
 
 ;; --- plugins -----------------------------------------------------------------------
 
+(defn- plugin-status
+  "Whether plugin `p` loaded, from `report`, and the source types it adds."
+  [p report]
+  (let [types (plugin/source-types p)]
+    (cond
+      (nil? report) [:p.error "Not loaded: there's no plugin of this name in plugins/, so its settings go unused."]
+      (not (:ok report)) [:p.error "Failed to load: " (:error report)]
+      (seq types) [:p.doc "Adds the source "
+                   (if (= 1 (count types)) "type " "types ")
+                   (interpose ", " (for [t types] [:code (name t)]))
+                   "."]
+      :else [:p.doc "Loaded."])))
+
 (defn- plugins-section [tree errors]
-  (let [ps (sort-by key (get tree "plugins"))]
-    (if (empty? ps)
-      [:p.doc "No plugin has settings. A plugin is a folder in plugins/ in the config directory, "
-       "loaded when newsroom starts."]
-      (for [[p m] ps
-            :let [nm (settings/field-name :plugins p)
-                  shape (plugin/settings-shape p)]]
-        [:fieldset.plugin
-         [:legend p]
-         (when-let [doc (:doc shape)] [:p.doc doc])
-         (when-not shape
-           [:p.doc "This plugin doesn't say what its settings are, so they are kept as EDN."])
-         [:p.doc "A value written as ${VAR} is read from the environment, or else from secrets.edn."]
-         (for [f (:fields shape)]
-           (field-row f (settings/field-name nm (:key f)) (get m (name (:key f))) errors 1))
-         (extra-row nm m errors)]))))
+  (let [{:keys [root plugins]} (plugin/loaded)
+        reports (into {} (map (juxt :plugin identity)) plugins)
+        ps (sort-by key (get tree "plugins"))]
+    (list
+     [:p.doc "The plugins found in " [:code (or root "plugins/")] " when newsroom started. "
+      "A plugin is a folder of Clojure namespaces there; one added or changed is loaded at the next start, "
+      "and its settings here take effect when saved."]
+     (for [[p m] ps
+           :let [nm (settings/field-name :plugins p)
+                 shape (plugin/settings-shape p)]]
+       [:fieldset.plugin
+        [:legend p]
+        (plugin-status p (reports p))
+        (when-let [doc (:doc shape)] [:p.doc doc])
+        (if shape
+          (when (seq (:fields shape))
+            [:p.doc "A value written as ${VAR} is read from the environment, or else from secrets.edn."])
+          [:p.doc "This plugin doesn't say what its settings are, so any it reads are kept as EDN."])
+        (for [f (:fields shape)]
+          (field-row f (settings/field-name nm (:key f)) (get m (name (:key f))) errors 1))
+        (extra-row nm m errors)]))))
 
 ;; --- the page ----------------------------------------------------------------------
 

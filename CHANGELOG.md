@@ -12,6 +12,10 @@
   story is written from what was said rather than from the description.
 - **An item's own text.** A plugin's item can carry `:text`, its full text,
   which the desk reads in place of fetching the page at its URL.
+- **Plugins on the config page.** The Plugins section lists every plugin
+  found at startup, the source types each adds, and why one failed to load,
+  with a field for each setting a plugin declares, whether or not it has
+  been set yet.
 - **A source's own lookback.** `:lookback-days` on a source, or on a source
   type's shape, overrides the run's for that source's items, for a source
   that publishes every few days rather than every day.

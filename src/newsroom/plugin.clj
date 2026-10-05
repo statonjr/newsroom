@@ -126,6 +126,21 @@
          entry (or (get plugins (keyword (name plugin))) (get plugins (name plugin)))]
      (expand-vars (name plugin) entry))))
 
+(defonce ^:private plugin-types (atom {}))
+
+(defn add-source-type!
+  "Note that the plugin being loaded adds source `type`, for the config
+  page to say so; outside of loading one, nothing."
+  [type]
+  (when-let [p (:name *plugin*)]
+    (swap! plugin-types update p (fnil conj (sorted-set)) type))
+  nil)
+
+(defn source-types
+  "The source types `plugin` added, in order."
+  [plugin]
+  (vec (get @plugin-types (name plugin))))
+
 (defmacro defsource
   "Add a source type: `body` returns the items a source of `type` has, for
   the context {:day \"YYYY-MM-DD\" :config ...}. An optional map before the
@@ -135,6 +150,7 @@
   (let [[shape [source ctx] & body] (if (vector? (first more)) (cons nil more) more)]
     `(do
        ~@(when shape [`(defmethod sources/shape ~type [~'_] ~shape)])
+       (add-source-type! ~type)
        (defmethod sources/fetch-items ~type [~source ~ctx] ~@body))))
 
 (defmacro defname
@@ -271,11 +287,19 @@
           (println "plugin" name "failed to load:" (ex-message e)))
         {:plugin name :ok false :error (or (ex-message e) (str e))}))))
 
+(defonce ^:private last-load (atom {:root nil :plugins []}))
+
+(defn loaded
+  "What the last load-all! found: {:root :plugins}, the directory and the
+  report on each plugin in it."
+  []
+  @last-load)
+
 (defn load-all!
   "Load every plugin in the directory `root`, in name order, with `cfg` the
   config their settings come from. A plugin that fails to load is reported
   and skipped rather than keeping the server down. Returns a report per
-  plugin: {:plugin :ok :namespaces :error}."
+  plugin: {:plugin :ok :namespaces :error}, which `loaded` keeps."
   [root cfg]
   (set-config! cfg)
   (let [dir (io/file root)
@@ -288,4 +312,6 @@
       (let [path (.getPath dir)]
         (jolt.host/set-source-roots!
          (vec (distinct (cons path (jolt.host/source-roots)))))))
-    (mapv #(load-one (.getPath dir) %) entries)))
+    (let [report (mapv #(load-one (.getPath dir) %) entries)]
+      (reset! last-load {:root (.getPath dir) :plugins report})
+      report)))

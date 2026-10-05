@@ -407,10 +407,12 @@
           (indexed raw)))
 
 (defn plugin-names
-  "The plugins the page has settings for: those that declared them and
-  those with settings already, by name."
+  "The plugins the page shows, by name: those found at startup, those that
+  declared settings and those with settings already."
   [settings]
-  (sort (distinct (concat (plugin/declared-settings) (map name (keys (:plugins settings)))))))
+  (sort (distinct (concat (map :plugin (:plugins (plugin/loaded)))
+                          (plugin/declared-settings)
+                          (map name (keys (:plugins settings)))))))
 
 (defn plugin-fields [plugin] (:fields (plugin/settings-shape plugin)))
 

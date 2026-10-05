@@ -103,6 +103,31 @@
       (is (nil? (sources/shape :plain-test)))
       (is (= [] (sources/fetch-items {:type :plain-test} {:day "2026-09-30" :config {}}))))))
 
+(deftest the-page-lists-every-plugin-found
+  (let [dir (str (fs/create-temp-dir))
+        put! (fn [rel text] (io/make-parents (io/file dir rel)) (spit (io/file dir rel) text))
+        _ (put! "quiet/core.clj" (str "(ns quiet.core (:require [newsroom.plugin :as plugin]))\n"
+                                      "(plugin/defsource :quiet-test [source ctx] [])\n"))
+        _ (put! "keyed/core.clj" (str "(ns keyed.core (:require [newsroom.plugin :as plugin]))\n"
+                                      "(plugin/defsettings {:doc \"Keys for it.\" :fields [{:key :api-key :type :string\n"
+                                      "  :doc \"The service's key.\"}]})\n"))
+        _ (put! "bust/core.clj" "(ns bust.core)\n(throw (ex-info \"no good\" {}))\n")
+        _ (plugin/load-all! dir {})
+        st (store/open "sqlite::memory:")]
+    (try
+      (let [page (ui/page st {:config {:tree (settings/to-form (assoc (defaults) :plugins {:quiet {:x 1}}))}})
+            fieldset (fn [p] (re-find (re-pattern (str "(?s)<legend>" p "</legend>.*?</fieldset>")) page))]
+        (is (str/includes? page dir) "where they were found")
+        (testing "one that adds a source type and declares no settings"
+          (is (str/includes? (fieldset "quiet") "Adds the source type <code>quiet-test</code>"))
+          (is (str/includes? (fieldset "quiet") "{:x 1}</textarea>") "what it reads is kept as EDN"))
+        (testing "one that declares its settings has a field for each"
+          (is (str/includes? (fieldset "keyed") "Keys for it."))
+          (is (str/includes? (fieldset "keyed") "name=\"plugins.keyed.api-key\"")))
+        (testing "one that failed says why"
+          (is (str/includes? (fieldset "bust") "Failed to load: no good"))))
+      (finally (store/close st)))))
+
 (deftest the-page-shows-every-setting-with-what-it-does
   (plugin/load-all! "plugins" {})
   (let [st (store/open "sqlite::memory:")]
