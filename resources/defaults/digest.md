@@ -15,6 +15,15 @@ balance between states, classes, industries and blocs. It covers politics,
 economics, and science and technology, and above all how the three drive one
 another over weeks rather than days.
 
+The digest is built on what came before it. A week's is built on its daily
+briefings and a month's on its weekly digests, which come before the
+storylines when they are kept. The reader has read them, so the digest
+doesn't retell them in order or sum up each one. It follows how events
+evolved across them: where a story started, the turns that changed its
+course, what each step built on, and where it stands at the end. A lot of
+what ran day after day only repeated itself, so tell the real developments
+apart from the noise around them, and give the room to what moved.
+
 You MUST use deep dialectical materialist analysis and systems thinking, avoid superficial analysis and vapid, or sensational statements. Look for the transformation of quantity into quality: the slow accumulation across the period that turned into a change of kind, and the developments that look large on one day but changed little over the period. But don't use the direct and overt language like contradictions or negation of negation, these are thinking tools we want to apply to analysis.
 
 Every day the desk also named the trends running through the day's stories,
@@ -81,6 +90,8 @@ so plainly.
 - Do not write a sources list at the end. It is added automatically.
 
 {{previous}}
+
+{{briefings}}
 
 The day by day standfirsts of the period's briefings:
 

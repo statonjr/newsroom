@@ -9,6 +9,19 @@
   the test suite runs on Windows too. It needs Windows 10 or later, and jolt
   0.8.16 or later to build.
 
+### Changed
+
+- **Briefings say what's new.** The model gets the whole previous briefing
+  rather than its overview, and the reports on stories that briefing cited
+  are marked as already in it. It's told to give the room to what moved
+  since then, keep a running story that didn't move to a line at most, and
+  check yesterday's projections against what happened.
+- **Digests build on what came before them.** A weekly digest reads the
+  week's daily briefings and follows how events evolved across them, and a
+  monthly digest reads the month's weekly digests, with the overviews of
+  any days they don't cover. The digest prompt has a `{{briefings}}` place
+  for them.
+
 ### Fixed
 
 - **secrets.edn on Windows.** The check that only its owner can read the

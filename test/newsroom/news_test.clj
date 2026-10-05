@@ -91,3 +91,27 @@
   (testing "a standfirst that cites its sources is shown without the citations"
     (is (= "Rates up, tech down."
            (news/tldr "# The day\n\n> Rates up [[1]](https://e.com/1), tech down [2].\n\n## Overview")))))
+
+(deftest a-briefing-is-read-back-whole-without-what-belongs-to-its-day
+  (let [doc (str "# The day\n\n> Rates up [1].\n\n## Overview\n\nRates rose [[1]](https://e.com/1).\n\n"
+                 "## How it all connects\n\n```mermaid\nflowchart LR\n```\n\nThe links [2, 3].\n\n"
+                 "## Sources\n\n- [1] [Rates](https://e.com/1)\n")
+        body (news/body doc 10000 2)]
+    (is (str/includes? body "### The day"))
+    (is (str/includes? body "#### How it all connects\n\nThe links."))
+    (is (str/includes? body "Rates rose."))
+    (is (not (str/includes? body "mermaid")) "the diagram is the day's")
+    (is (not (str/includes? body "e.com")) "and so are its citations and sources")
+    (is (= "### The day" (news/body doc 5 2)) "cut at a paragraph")))
+
+(deftest a-story-the-last-briefing-told-is-marked
+  (let [src (fn [n & kvs] (apply assoc {:n n :title (str "T" n) :url (str "https://e.com/" n) :source "S"
+                                        :summary "" :published nil} kvs))
+        p (news/render-prompt "{{sources}}" "d"
+                              [(src 1 :covered true) (src 2)
+                               (src 3 :group "G1" :group-title "Talks" :covered true) (src 4 :group "G1")]
+                              nil)]
+    (is (str/includes? p "[1] T1 (S)\nhttps://e.com/1\nAlready in the last briefing"))
+    (is (not (str/includes? p "[2] T2 (S)\nhttps://e.com/2\nAlready")))
+    (is (str/includes? p "Story: Talks\nAlready in the last briefing"))
+    (is (= 2 (count (re-seq #"Already in the last briefing" p))) "a story's reports share its header's mark")))

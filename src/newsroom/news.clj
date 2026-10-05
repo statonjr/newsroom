@@ -211,6 +211,9 @@
   [s]
   (coverage-text (outlets s) (or (:days s) 1)))
 
+(def ^:private covered-note
+  "Already in the last briefing: only what is new in it since then belongs in today's.")
+
 (defn- source-line
   "A source as the analyst sees it. One told among a story's other reports
   leaves its coverage to the story, and one the desk wrote a dossier on
@@ -221,6 +224,7 @@
        (when-let [p (:published s)] (str ", " p))
        "\n" (:url s)
        (when-not grouped? (when-let [c (coverage s)] (str "\n" c)))
+       (when (and (:covered s) (not grouped?)) (str "\n" covered-note))
        (when-let [g (:gap s)]
          (str "\nFound for what the reporting on " (:gap-story s) " left out: " g))
        (when-not (or (:briefed s) (str/blank? (:summary s))) (str "\n" (:summary s)))))
@@ -228,10 +232,11 @@
 (defn- group-header
   "The line a story told in several reports opens with: its title, status
   and the coverage of all its reports."
-  [{:keys [group-title status group-outlets days briefed]}]
+  [{:keys [group-title status group-outlets days briefed covered]}]
   (str "Story: " group-title
        (when status (str "\nStatus: " status))
        (when-let [c (coverage-text (or group-outlets 1) (or days 1))] (str "\n" c))
+       (when covered (str "\n" covered-note))
        (when briefed "\nThe desk's dossier on it is above, so its reports are listed without their summaries.")))
 
 (defn- precedent-line
@@ -256,10 +261,12 @@
   together under its header."
   [today]
   (let [sizes (frequencies (keep :group today))
-        several? #(> (get sizes (:group %) 0) 1)]
+        several? #(> (get sizes (:group %) 0) 1)
+        covered (set (keep #(when (:covered %) (:group %)) today))]
     (first (reduce (fn [[out seen] s]
                      (if (several? s)
-                       [(-> (cond-> out (not (seen (:group s))) (conj (group-header s)))
+                       [(-> (cond-> out (not (seen (:group s)))
+                              (conj (group-header (cond-> s (covered (:group s)) (assoc :covered true)))))
                             (conj (source-line s true)))
                         (conj seen (:group s))]
                        [(conj out (source-line s false)) seen]))
@@ -286,6 +293,18 @@
       (str/replace #"\s*\[\[\d+\]\]\([^)\s]*\)(,\s*\[\[\d+\]\]\([^)\s]*\))*" "")
       (str/replace #"\s*\[\d+(,\s*\d+)*\]" "")))
 
+(defn- cut-at-paragraph
+  "The paragraphs of `text` that fit in about `max-chars`, the first one
+  whatever its length."
+  [text max-chars]
+  (let [paragraphs (remove str/blank? (map str/trim (str/split text #"\n\s*\n")))
+        kept (reduce (fn [acc p]
+                       (if (and (seq acc) (> (+ (count (str/join "\n\n" acc)) 2 (count p)) max-chars))
+                         (reduced acc)
+                         (conj acc p)))
+                     [] paragraphs)]
+    (when (seq kept) (str/join "\n\n" kept))))
+
 (defn overview
   "The first section of a briefing, its overview, without citations and cut
   to a few paragraphs: what the next day's briefing can take as established.
@@ -294,15 +313,24 @@
   (let [body (->> (str/split-lines (str markdown))
                   (drop-while #(not (re-find #"^## " %)))
                   rest
-                  (take-while #(not (re-find #"^#{1,2} " %))))
-        paragraphs (remove str/blank? (map str/trim (str/split (strip-citations (str/join "\n" body))
-                                                              #"\n\s*\n")))
-        kept (reduce (fn [acc p]
-                       (if (and (seq acc) (> (+ (count (str/join "\n\n" acc)) (count p)) overview-chars))
-                         (reduced acc)
-                         (conj acc p)))
-                     [] paragraphs)]
-    (when (seq kept) (str/join "\n\n" kept))))
+                  (take-while #(not (re-find #"^#{1,2} " %))))]
+    (cut-at-paragraph (strip-citations (str/join "\n" body)) overview-chars)))
+
+(defn body
+  "A briefing or digest as another prompt reads it back: its text without
+  citations, diagrams or the Sources list, which belong to its own day,
+  cut at a paragraph to about `max-chars`. Its headings are moved `depth`
+  levels down, so it nests under the heading that introduces it. nil when
+  it has no text."
+  [markdown max-chars depth]
+  (let [down (apply str (repeat depth "#"))
+        text (-> (str markdown)
+                 (str/split #"(?m)^## Sources\s*$" 2)
+                 first
+                 (str/replace #"(?s)```.*?(?:```|$)" "")
+                 strip-citations
+                 (str/replace #"(?m)^(#+) " (fn [[_ hs]] (str (subs (str hs down) 0 (min 6 (+ (count hs) depth))) " "))))]
+    (cut-at-paragraph text max-chars)))
 
 (defn tldr
   "The standfirst of a briefing: the first blockquote before the first

@@ -241,16 +241,28 @@
            (take n)
            (keep #(store/day store %))))))
 
+(def ^:private previous-chars
+  "About how much of the last briefing the next day's model reads back:
+  all of a full one, cut at a paragraph past that."
+  24000)
+
 (defn- previous-context
-  "What the model is told about the last briefing: its overview, as what is
-  already established and to be built on rather than told again."
-  [day overview]
+  "What the model is told about the last briefing: the briefing itself, as
+  what the reader already knows, so today's says what is new rather than
+  telling it again."
+  [day briefing]
   (str "## Already established\n\n"
-       "This is the overview of the last briefing, for " (sources/long-date day) ". Take it as what "
-       "the reader already knows. Don't retell it. Build on it, say what today's news changes, "
-       "confirms or overturns, and follow up threads it left open. Its citations belong to that "
-       "day's sources, so cite only today's numbered sources below.\n\n"
-       overview))
+       "This is the last briefing, for " (sources/long-date day) ". The reader has read it, so take "
+       "everything in it as known and write today's about what is genuinely new since then. A lot of "
+       "today's reports carry on stories it already told, and many of them only repeat what was known, "
+       "so weigh each one by what it adds. Where a story moved, say in a sentence where it stood and "
+       "then what changed, and don't restate its background, its mechanics or the projections already "
+       "made unless today's news changes them. Where a story didn't move, leave it out, however many "
+       "reports it has today. Check what it expected against what happened, and say plainly when a "
+       "projection held, failed or is still open. A new development deserves more room than a familiar "
+       "one with more coverage. Its citations belong to that day's sources, so cite only today's "
+       "numbered sources below.\n\n"
+       briefing))
 
 (defn- write-up
   "Task: the analyst's answer to `prompt`, streamed to the status as it is
@@ -712,6 +724,11 @@
             ;; its first source
             ranked (-> (->> ranked (take (:max-items config 80)) news/cite)
                        (analysis/story-ids day))
+            ;; a story the last briefing cited is flagged, so today's says
+            ;; only what is new in it
+            covered (set (keep :story (:cited earlier)))
+            ranked (cond->> ranked
+                     (seq covered) (mapv #(cond-> % (contains? covered (:story %)) (assoc :covered true))))
             _ (when (empty? ranked)
                 (throw (ex-info (if (seq gathered)
                                   (str "every story gathered was already in the briefings up to "
@@ -748,9 +765,11 @@
             analysed (when desk
                        (analysis/analysis-block (:stories desk) dossiers the-map found (some? graph)))
             llm-config (providers/role-llm config :analyst)
-            established (some-> (:markdown earlier) news/overview)
+            established (some-> (:markdown earlier) (news/body previous-chars 2))
             _ (when established
-                (log! run-id {:text (str "Building on the briefing for " (sources/long-date (:day earlier)))}))
+                (log! run-id {:text (str "Building on the briefing for " (sources/long-date (:day earlier))
+                                         (when-let [n (seq (filter :covered ranked))]
+                                           (str ", " (count n) " of today's reports on stories it covered")))}))
             running (notes/background kept numbered sources/long-date)
             _ (when running
                 (log! run-id {:text "Giving the model the notes on the stories still running"}))
@@ -845,6 +864,59 @@
        "sources below.\n\n"
        overview))
 
+(def ^:private day-chars
+  "About how much of each day's briefing a weekly digest reads."
+  8000)
+
+(def ^:private week-chars
+  "About how much of each weekly digest a monthly one reads."
+  12000)
+
+(defn- weeks-over
+  "The weeks that overlap the days from `from` to `to`, in order."
+  [from to]
+  (->> (iterate #(trends/period-of :week (trends/plus-days (second (trends/period-range :week %)) 1))
+                (trends/period-of :week from))
+       (take-while #(<= (compare (first (trends/period-range :week %)) to) 0))))
+
+(defn- briefings-context
+  "What a digest is built on, nil when none of it is kept: a week's daily
+  briefings, or a month's weekly digests, with the overviews of the
+  month's days that no weekly digest covers."
+  [store kind from to]
+  (let [entry (fn [heading text] (when text (str "### " heading "\n\n" text)))
+        joined #(some->> % (remove nil?) seq (str/join "\n\n"))
+        days (store/briefings-between store from to)]
+    (case kind
+      :week
+      (some->> (joined (map #(entry (sources/long-date (:day %)) (news/body (:markdown %) day-chars 3)) days))
+               (str "## The week's briefings\n\n"
+                    "These are the daily briefings of the week, in order. The reader has read them day by "
+                    "day, so don't retell them or go through the week one day at a time. Read them for how "
+                    "things evolved across the week: where each story stood at the start, the turns it took, "
+                    "what each day really added and what only repeated what was known, which threads came "
+                    "together and which went nowhere, and where things ended up. Their citations belong to "
+                    "those days' sources, so cite only the numbered sources below.\n\n"))
+      :month
+      (let [weeks (keep (fn [w] (when-let [d (store/digest store :week w)] [w d])) (weeks-over from to))
+            covered (fn [day] (some (fn [[w _]] (let [[f t] (trends/period-range :week w)]
+                                                  (<= (compare f day) 0 (compare t day))))
+                                    weeks))
+            weekly (map (fn [[w d]] (entry (let [l (period-label :week w)] (str (str/upper-case (subs l 0 1)) (subs l 1))) (news/body (:markdown d) week-chars 3)))
+                        weeks)
+            daily (map #(entry (sources/long-date (:day %)) (news/overview (:markdown %)))
+                       (remove (comp covered :day) days))]
+        (some->> (joined (concat weekly daily))
+                 (str "## The month's weekly digests\n\n"
+                      "These are the digests of the weeks of the month, in order, and the overviews of the "
+                      "briefings of any days they don't cover. The reader has read them, so don't retell "
+                      "them or go through the month one week at a time. Read them for how things developed "
+                      "across the weeks: which movements built from one week to the next, where they turned, "
+                      "what the weeks' readings got right or wrong in hindsight, and what the month amounts "
+                      "to that no single week shows. The first and last weeks may run past the month's "
+                      "edges, so keep to what happened within it. Their citations belong to those digests' "
+                      "sources, so cite only the numbered sources below.\n\n"))))))
+
 (defn digest-task
   "Task: write and store the digest of `kind` (:week or :month) for
   `period` from what is kept of its days: their coverage, which ranks the
@@ -898,13 +970,18 @@
             threads (trends/trend-threads (store/trends-between store from to))
             _ (when (seq threads)
                 (log! run-id {:text (str "Following " (count threads) " trends the desk found through the period")}))
+            built-on (briefings-context store kind from to)
+            _ (when built-on
+                (log! run-id {:text (str "Building on the " (if (= kind :month) "weekly digests" "daily briefings")
+                                         " of " label)}))
             prompt (trends/render-digest-prompt
                     (or (:digest-template ctx) (config/digest-template config))
                     label
                     (trends/days-block days sources/long-date)
                     (trends/digest-block lines sources/long-date)
                     (some->> established (previous-digest-context kind last-period))
-                    (trends/trends-block threads sources/long-date))
+                    (trends/trends-block threads sources/long-date)
+                    built-on)
             llm-config (providers/role-llm config :analyst)
             _ (update-status! run-id assoc :state :analysing :items (count lines)
                               :provider (name (:alias llm-config)) :model (:model llm-config))

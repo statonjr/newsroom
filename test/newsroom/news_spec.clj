@@ -14,7 +14,7 @@
   values, so duplicates are common: a story is keyed by a small number, and
   the same story comes back with a fragment or tracking parameters on it."
   (:require [clojure.string :as str]
-            [newsroom.news :refer [canonical-url dedupe-items unseen-items overview cite render-prompt render-desk-prompt has-var? place-vars
+            [newsroom.news :refer [canonical-url dedupe-items unseen-items overview body cite render-prompt render-desk-prompt has-var? place-vars
                                    citations link-citations briefing collapse-similar told outlets tldr
                                    valid-day? adjacent-days]]
             [newsroom.template :as template]
@@ -45,6 +45,7 @@
 (ann dedupe-items   [(List Item) -> (List Item)])
 (ann unseen-items   [(List Item) (List Item) -> (List Item)])
 (ann overview       [String -> (Opt String)])
+(ann body           [String Nat Nat -> (Opt String)])
 (ann cite           [(List Item) -> (List Source)])
 (ann render-prompt  [Template String (List Source) (Opt String) -> String])
 (ann render-desk-prompt [Template String (List Source) (Opt String)
@@ -236,6 +237,33 @@
                                           " Another one [" n ", " m "].")
                                "x")))))
 
+(law the-body-keeps-every-section-but-the-sources
+  (forall [a String, b String]
+    (let [text (body (str (briefing-doc "Day" (str "Opening " (alnum a) ".") (str "Later " (alnum b) "."))
+                          "\n\n## Sources\n\n- [1] [x](https://e.com/1)")
+                     100000 1)]
+      (and (str/includes? text (str "Opening " (alnum a) "."))
+           (str/includes? text (str "### Politics\n\nLater " (alnum b) "."))
+           (not (str/includes? text "Sources"))))))
+
+(law the-body-loses-its-citations
+  (forall [n Nat, m Nat]
+    (= "## Day\n\n### Overview\n\nA claim. Another."
+       (body (str "# Day\n\n## Overview\n\nA claim [[" n "]](https://e.com/" n "), [[" m "]](https://e.com/x). Another [" m "].") 100000 1))))
+
+(law the-body-moves-its-headings-down-by-the-depth
+  (forall [d Nat, a String]
+    (let [d (mod d 5)]
+      (= (str (apply str (repeat (inc d) "#")) " Day\n\nText " (alnum a) ".")
+         (body (str "# Day\n\nText " (alnum a) ".") 100000 d)))))
+
+(law the-body-is-cut-at-a-paragraph
+  (forall [n Nat, a String, b String]
+    (let [one (str "One " (alnum a) ".")
+          whole (str one "\n\nTwo " (alnum b) ".")]
+      (= (if (> (count whole) n) one whole)
+         (body whole n 1)))))
+
 (law a-briefing-with-no-sections-has-no-overview
   (forall [a String]
     (nil? (overview (str "# Just a title " (alnum a))))))
@@ -379,9 +407,8 @@
 
 (law an-answer-citing-nothing-lists-no-sources
   (forall [ns (List Nat), t String]
-    (every? (fn [s] (not (str/includes? (briefing (str "No claims " (alnum t)) (sources-of ns))
-                                        (str "(" (:url s) ")"))))
-            (sources-of ns))))
+    (= (str "No claims." (alnum t) "\n\n## Sources\n\n_No sources were cited._\n")
+       (briefing (str "No claims." (alnum t)) (sources-of ns)))))
 
 (law each-cited-source-is-a-linked-entry
   (forall [n Nat, ns (List Nat), i Nat]

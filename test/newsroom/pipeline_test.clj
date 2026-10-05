@@ -347,6 +347,44 @@
       (is (str/includes? (second @prompts) "Digest of the week of 5 October 2026."))
       (is (str/includes? (second @prompts) "in the periods before")))))
 
+(deftest a-weekly-digest-builds-on-the-daily-briefings
+  (let [prompts (atom [])
+        c (-> (digest-ctx (fn [_ req] (swap! prompts conj (-> req :messages first :content))
+                            {:content "# The week\n\n## Overview\n\nHeld [1]." :model "fake"}))
+              (assoc :digest-template "Digest of {{period}}.\n\n{{stories}}"))
+        st (:store c)]
+    (store-week! st)
+    (store/save-day! st {:day "2026-09-29"
+                         :sources [(assoc (stored-source 1 "Federal Reserve holds rates steady" "2026-09-28/1")
+                                          :also [{:source "Other" :url "https://other.example.com/1"}])]
+                         :cited [1] :tldr "Day 1." :model "m" :provider "p"
+                         :markdown "# Tuesday\n\n## Overview\n\nThe Fed held again [[1]](https://cited.org/1)."})
+    (m/? (pipeline/digest-task c :week "2026-W40"))
+    (let [p (first @prompts)]
+      (is (str/includes? p "## The week's briefings"))
+      (is (str/includes? p "### 29 September 2026\n\n#### Tuesday\n\n##### Overview\n\nThe Fed held again."))
+      (is (not (str/includes? p "cited.org")))
+      (is (< (str/index-of p "The week's briefings") (str/index-of p "### Federal Reserve holds rates steady"))
+          "before the storylines when the template has no place for them"))))
+
+(deftest a-monthly-digest-builds-on-the-weekly-ones
+  (let [prompts (atom [])
+        c (-> (digest-ctx (fn [_ req] (swap! prompts conj (-> req :messages first :content))
+                            {:content "# W\n\n## Overview\n\nThe week's reading [1]." :model "fake"}))
+              (assoc :digest-template "Digest of {{period}}.\n\n{{briefings}}\n\n{{stories}}"))
+        st (:store c)]
+    (store-week! st)
+    (store/save-day! st {:day "2026-09-24" :sources [] :cited [] :model "m" :provider "p"
+                         :markdown "# Thursday\n\n## Overview\n\nA day no week covers.\n\n## Politics\n\nNot this."})
+    (m/? (pipeline/digest-task c :week "2026-W40"))
+    (m/? (pipeline/digest-task c :month "2026-09"))
+    (let [p (second @prompts)]
+      (is (str/includes? p "## The month's weekly digests"))
+      (is (str/includes? p "### The week of 28 September 2026\n\n#### W\n\n##### Overview\n\nThe week's reading."))
+      (is (str/includes? p "### 24 September 2026\n\nA day no week covers.") "a day without a weekly digest gives its overview")
+      (is (not (str/includes? p "Not this.")))
+      (is (not (str/includes? p "### 29 September 2026")) "a day its week's digest covers isn't repeated"))))
+
 (deftest a-digest-reads-days-stored-before-storylines-were-kept
   ;; sources from before storylines and notes: no :story, no vector
   (let [c (digest-ctx (fn [_ _] {:content "# September\n\n## Overview\n\nRates [1]." :model "fake"}))
@@ -738,12 +776,13 @@
     (store/save-day! (:store c) {:day "2026-09-29" :sources []
                                  :cited [] :model "m" :provider "p"
                                  :markdown (str "# Yesterday\n\n## Overview\n\nTariffs went up [[3]](https://e.com/3)."
-                                                "\n\n## Politics\n\nDetail that stays out.")})
+                                                "\n\n## Politics\n\nDetail that comes along too."
+                                                "\n\n## Sources\n\n- [3] [Tariffs](https://e.com/3)")})
     (m/? (pipeline/run-task c "2026-09-30"))
     (let [p (first @prompts)]
       (is (str/includes? p "29 September 2026"))
       (is (str/includes? p "Tariffs went up."))
-      (is (not (str/includes? p "Detail that stays out")))
+      (is (str/includes? p "#### Politics\n\nDetail that comes along too.") "the whole briefing, not only its overview")
       (is (not (str/includes? p "e.com/3")) "yesterday's citations don't come along")
       (is (< (str/index-of p "Tariffs went up") (str/index-of p "[1] Story 5"))
           "the context comes before today's sources"))

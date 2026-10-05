@@ -153,6 +153,16 @@ a major trend and deserves more weight, though coverage alone doesn't make an
 event significant and a single outlet can carry the most important news of
 the day.
 
+The briefing is read every day, so it is about what changed since the last
+one. A source on a story the last briefing already told is marked as
+already in it. Coverage counts how much a story is being talked about, and
+a story that runs for days piles up reports that only repeat what was
+known, so for those weigh what the report adds, not how many outlets carry
+it. Give the room to what is genuinely new: a turn in a running story, a
+step that moves it from one stage to the next, or a development nobody
+reported before. A running story that didn't move today gets a line at
+most, or nothing.
+
 It's better to cover fewer events well and connect them properly than to
 touch on everything that was reported. Don't mention the stories you left
 out.

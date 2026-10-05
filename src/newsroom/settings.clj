@@ -132,14 +132,15 @@
    {:title "Prompts"
     :fields [{:key :prompt :type :text :rows 18 :template? true
               :doc (str "What the model is told to write the briefing, a Selmer template: {{date}} is the day, "
-                        "{{sources}} the numbered sources, {{previous}} the last briefing's overview, {{analysis}} the "
+                        "{{sources}} the numbered sources, {{previous}} the last briefing, {{analysis}} the "
                         "desk's dossiers and map, {{graph}} true when the graph is drawn for the analyst, and "
                         "{% if previous %}...{% endif %} shows text only when there is one. Without a place for "
-                        "them, the sources are appended and the overview and the analysis go just before them. "
+                        "them, the sources are appended and the last briefing and the analysis go just before them. "
                         "Blank is the default.")}
              {:key :digest-prompt :type :text :rows 12 :template? true
               :doc (str "The weekly and monthly digests' prompt, a Selmer template: {{period}}, {{days}}, "
-                        "{{stories}}, {{previous}}, the last digest's overview, and {{trends}}, the trends the desk "
+                        "{{stories}}, {{previous}}, the last digest's overview, {{briefings}}, the week's daily "
+                        "briefings or the month's weekly digests, and {{trends}}, the trends the desk "
                         "followed through the period, are filled in. "
                         "Blank is the default.")}
              {:key :precedent-prompt :type :text :rows 12 :template? true

@@ -338,6 +338,14 @@
     (mapv (fn [r] {:day (:day r) :tldr (:tldr r)})
           (jdbc/fetch conn ["select day, tldr from standfirsts where day >= ? and day <= ? order by day" from to]))))
 
+(defn briefings-between
+  "The briefings of the days from `from` to `to`, both inclusive, oldest
+  first, as {:day :markdown}: only the days :keep-days hasn't dropped."
+  [store from to]
+  (with-db [conn store]
+    (mapv (fn [r] {:day (:day r) :markdown (:markdown r)})
+          (jdbc/fetch conn ["select day, markdown from briefings where day >= ? and day <= ? order by day" from to]))))
+
 (defn save-notes!
   "Store storyline notes, {story note}, each replacing the story's last."
   [store notes]
