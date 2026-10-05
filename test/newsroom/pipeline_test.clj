@@ -17,6 +17,10 @@
   (sources/emit! ctx (str "Reading fixture " name) {:url (str "https://e.com/feed/" name)})
   (mapv #(item % day) ns))
 
+(defmethod sources/fetch-items ::transcribed [_ {:keys [day]}]
+  [(assoc (item 7 day) :text "Transcript of the video: what was said, in full.")
+   (item 8 day)])
+
 (defmethod sources/fetch-items ::slow [_ _]
   (Thread/sleep 5000)
   [(item 99 "2026-09-30")])
@@ -178,6 +182,33 @@
     (is (= ["https://e.com/2" "https://e.com/3" "https://e.com/4"]
            (map :url (pipeline/day-items results {:lookback-days 1 :max-items-per-source 9}
                                          "2026-09-30"))))))
+
+(deftest a-source-can-look-further-back-than-the-run
+  (let [dated (fn [n day] (assoc (item n day) :published (str day "T08:00:00Z")))
+        items [(dated 1 "2026-09-26") (dated 2 "2026-09-27") (dated 3 "2026-09-30")]]
+    (is (= ["https://e.com/3" "https://e.com/2/b"]
+           (map :url (pipeline/day-items [{:items items} {:items (mapv #(update % :url str "/b") (take 2 items))
+                                                         :lookback-days 3}]
+                                         {:lookback-days 1 :max-items-per-source 9} "2026-09-30")))
+        "the second result's own lookback reaches the 27th, the config's doesn't")
+    (is (= [(dated 3 "2026-09-30")]
+           (pipeline/day-items [{:items items :lookback-days nil}] {:lookback-days 1} "2026-09-30")))))
+
+(deftest a-report-that-brings-its-text-is-not-read-again
+  (let [prompts (atom [])
+        fetched (atom [])
+        c (-> (ctx [{:type ::transcribed :name "T"}]
+                   (fn [_ req]
+                     (let [p (-> req :messages first :content)]
+                       (swap! prompts conj p)
+                       {:content (if (str/includes? p "prepares the dossiers") "{\"dossiers\": []}" "# Today\n\nOne [1].")
+                        :model "fake"})))
+              (update :config merge {:dossier-stories 5 :read-articles 3}))]
+    (with-redefs [sources/fetch-text (fn [url _] (swap! fetched conj url) (throw (ex-info "no" {})))]
+      (m/? (pipeline/run-task c "2026-09-30")))
+    (is (= ["https://e.com/8"] @fetched) "only the report without its text is read")
+    (is (some #(str/includes? % "Full text:\nTranscript of the video: what was said, in full.") @prompts)
+        "the dossier is written from the text the source brought")))
 
 (deftest a-model-that-runs-out-of-tokens-says-so
   (let [c (ctx [{:type ::fixture :name "A" :ns [1]}]

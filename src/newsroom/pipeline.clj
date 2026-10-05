@@ -163,7 +163,7 @@
                 (= ::timed-out outcome) {:text (str name " timed out") :level :error}
                 (:error result) {:text (str name " failed: " (:error result)) :level :error}
                 :else {:text (str name ": " (count (:items result)) " items") :level :ok}))
-        (assoc result :source name)))))
+        (assoc result :source name :lookback-days (sources/lookback-days source config))))))
 
 (defn- round-robin
   "The first of each list, then the second of each, and so on, so that a cap
@@ -183,16 +183,17 @@
 
 (defn day-items
   "The items to analyse from each source's result: those published from
-  the lookback to the day after (an outlet ahead of the local timezone has
-  already dated today's news tomorrow), at most :max-items-per-source from
-  each outlet in it, interleaved. A source that reads many outlets, like a
-  feed reader or a search credited to outlets, gives each its own share."
+  the lookback, the result's :lookback-days or the config's, to the day
+  after (an outlet ahead of the local timezone has already dated today's
+  news tomorrow), at most :max-items-per-source from each outlet in it,
+  interleaved. A source that reads many outlets, like a feed reader or a
+  search credited to outlets, gives each its own share."
   [results config day]
-  (let [from (minus-days day (:lookback-days config 1))
-        to (plus-days day 1)
+  (let [to (plus-days day 1)
         cap (:max-items-per-source config 12)]
     (round-robin
-     (for [{:keys [items]} results
+     (for [{:keys [items lookback-days]} results
+           :let [from (minus-days day (or lookback-days (:lookback-days config 1)))]
            outlet (by-outlet (feed/recent items from to))]
        (take cap outlet)))))
 
@@ -500,10 +501,11 @@
   "Task: `stories` with the text of their main reports, :read-articles of
   each (none when it is 0), read from the outlets' pages, all at once. A
   page that can't be read, or holds too little to be the article, leaves
-  its report with its summary."
+  its report with its summary. A report whose source handed over its
+  text, like a video's transcript, keeps that text and isn't read."
   [{:keys [config run-id]} stories]
   (m/sp
-    (let [wanted (vec (mapcat #(analysis/readers % (:read-articles config 0)) stories))]
+    (let [wanted (vec (remove :text (mapcat #(analysis/readers % (:read-articles config 0)) stories)))]
       (if (empty? wanted)
         stories
         (let [_ (log! run-id {:text (str "Reading " (count wanted) " articles in full for the dossiers")})

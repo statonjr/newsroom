@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **A YouTube plugin.** `plugins/youtube` follows channels by handle,
+  channel ID or address. When a channel has published in the last few days,
+  its latest video is read for its transcript, through the same API
+  YouTube's apps use, with no key. The video is an item like any other, and
+  its transcript goes to the desk as its full text, so the dossier on its
+  story is written from what was said rather than from the description.
+- **An item's own text.** A plugin's item can carry `:text`, its full text,
+  which the desk reads in place of fetching the page at its URL.
+- **A source's own lookback.** `:lookback-days` on a source, or on a source
+  type's shape, overrides the run's for that source's items, for a source
+  that publishes every few days rather than every day.
+
 ## v0.7.0 — 4 October 2026
 
 The briefing is no longer written from the raw reports in one pass. A desk

@@ -105,6 +105,14 @@
            (sources/policy {:type ::typed :timeout-ms 5000 :retries 0} config))
         "its own over its type's, 0 included")))
 
+(defmethod sources/shape ::seldom [_] {:lookback-days 3})
+
+(deftest a-source-looks-back-by-its-own-days-first
+  (is (= 1 (sources/lookback-days {:type :rss} {})) "the default")
+  (is (= 2 (sources/lookback-days {:type :rss} {:lookback-days 2})) "the config's")
+  (is (= 3 (sources/lookback-days {:type ::seldom} {:lookback-days 2})) "its type's over the config's")
+  (is (= 0 (sources/lookback-days {:type ::seldom :lookback-days 0} {:lookback-days 2})) "its own, 0 included"))
+
 (defn- answering
   "An http/get answering each request with the next of `responses`, a map
   or an exception to throw, counting them in `calls`."

@@ -102,6 +102,15 @@
     (into {} (for [[k global] global-keys]
                [k (some #(when (some? %) %) [(get source k) (get typed k) (get config global) (default-policy k)])]))))
 
+(defn lookback-days
+  "How many days before the briefing's day an item of `source` may be
+  dated: its own :lookback-days, else its type's shape's, else the
+  config's, else 1. A source that publishes seldom, like a channel with a
+  video every few days, looks further back than the day's news."
+  [source config]
+  (some #(when (some? %) %) [(:lookback-days source) (:lookback-days (shape (:type source)))
+                             (:lookback-days config) 1]))
+
 (def ^:dynamic *policy*
   "The policy of the source being read, with its :deadline, the epoch ms
   by which it has to be done, and the run's :emit; bound by `read-source`.

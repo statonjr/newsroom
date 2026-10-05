@@ -24,7 +24,9 @@
   with `defname`. The whole source map from :sources is handed over too, so
   settings that differ per source, like which channel to read, go there.
   The map after the type is the source's shape (see newsroom.sources/shape),
-  which the config page builds a source's fields from:
+  which the config page builds a source's fields from. Its :lookback-days,
+  like a source's own, says how far back the type's items may be dated,
+  for a source that publishes less often than the news:
 
     (ns slack.core
       (:require [newsroom.plugin :as plugin]))
@@ -165,17 +167,33 @@
   "The name a source's items are credited to."
   sources/source-name)
 
+(def plain-text
+  "Markup reduced to what a reader sees: tags dropped, entities decoded,
+  whitespace collapsed."
+  feed/plain-text)
+
+(def lookback-days
+  "(lookback-days source config): how many days before the briefing's day
+  the source's items may be dated, its own :lookback-days, else its type's
+  shape's, else the config's. Items dated earlier are dropped from the run,
+  so a source can skip fetching them."
+  sources/lookback-days)
+
 (defn item
-  "An item from `m`, {:title :url :summary :published}: markup dropped from
-  the title and summary, the summary clipped, and credited to `source`
-  unless `m` has a :source of its own. :published is a date string in RSS
-  or ISO 8601 form, or nil when unknown."
+  "An item from `m`, {:title :url :summary :published :text}: markup
+  dropped from the title and summary, the summary clipped, and credited to
+  `source` unless `m` has a :source of its own. :published is a date
+  string in RSS or ISO 8601 form, or nil when unknown. :text, when given,
+  is the item's full text, like a video's transcript, which the desk reads
+  in place of fetching the page at :url; it's kept as it is, so the plugin
+  decides how much of it the analysis gets."
   [source m]
-  {:title (feed/plain-text (:title m))
-   :url (str (:url m))
-   :source (or (:source m) (source-name source))
-   :summary (feed/clip (feed/plain-text (:summary m)) feed/summary-chars)
-   :published (:published m)})
+  (cond-> {:title (feed/plain-text (:title m))
+           :url (str (:url m))
+           :source (or (:source m) (source-name source))
+           :summary (feed/clip (feed/plain-text (:summary m)) feed/summary-chars)
+           :published (:published m)}
+    (not (str/blank? (:text m))) (assoc :text (str (:text m)))))
 
 (defn request-json
   "Send `req` (as jolt.http-client takes it: :url, :request-method,

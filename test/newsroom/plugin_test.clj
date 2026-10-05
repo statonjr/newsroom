@@ -270,3 +270,111 @@
       (is (= ["World"] (map :title (sources/read-source {:type :reddit :subreddit ["worldnews"]}
                                                         {:day "2026-09-30" :config {}}))))
       (is (= 2 (count (filter #(str/includes? % "reddit.com") @calls)))))))
+
+;; --- the youtube plugin ------------------------------------------------------------
+
+(defn- yt-entry [id title published & [short?]]
+  (str "<entry><id>yt:video:" id "</id><yt:videoId>" id "</yt:videoId>"
+       "<title>" title "</title>"
+       "<link rel=\"alternate\" href=\"https://www.youtube.com/" (if short? "shorts/" "watch?v=") id "\"/>"
+       "<author><name>Chan</name></author>"
+       "<published>" published "</published>"
+       "<media:group><media:description>What it's about.\n\nSponsored by https://e.com #ad</media:description></media:group>"
+       "</entry>"))
+
+(def ^:private yt-feed
+  (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+       "<feed xmlns:yt=\"http://www.youtube.com/xml/schemas/2015\" xmlns:media=\"http://search.yahoo.com/mrss/\""
+       " xmlns=\"http://www.w3.org/2005/Atom\"><title>Chan</title><author><name>Chan</name></author>"
+       (yt-entry "short1" "A short" "2026-09-30T12:00:00+00:00" true)
+       (yt-entry "new1" "The latest" "2026-09-29T12:00:00+00:00")
+       (yt-entry "new2" "The one before" "2026-09-28T12:00:00+00:00")
+       (yt-entry "old1" "Last week's" "2026-09-20T12:00:00+00:00")
+       "</feed>"))
+
+(def ^:private timedtext
+  (str "<?xml version=\"1.0\" encoding=\"utf-8\" ?><transcript>"
+       "<text start=\"0.1\" dur=\"2\">Today we&amp;#39;re looking</text>"
+       "<text start=\"2\" dur=\"2\">at &amp;quot;tariffs&amp;quot;.</text></transcript>"))
+
+(defn- youtube-http
+  "http/get and http/request answering as YouTube does, recording the
+  requests in `seen`."
+  [seen & [{:keys [tracks] :or {tracks [{:languageCode "de" :baseUrl "https://yt.e/de"}
+                                         {:languageCode "en" :kind "asr" :baseUrl "https://yt.e/asr&fmt=srv3"}
+                                         {:languageCode "en-GB" :baseUrl "https://yt.e/en&fmt=srv3"}]}}]]
+  {:get (fn [url _]
+          (swap! seen conj url)
+          (cond
+            (= url "https://www.youtube.com/@chan")
+            {:status 200 :body "<link rel=\"canonical\" href=\"https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa\">"}
+            (str/includes? url "channel_id=UCaaaaaaaaaaaaaaaaaaaaaa") {:status 200 :body yt-feed}
+            (= url "https://yt.e/en") {:status 200 :body timedtext}
+            :else {:status 404 :body ""}))
+   :request (fn [req]
+              (swap! seen conj (json/read-str (:body req) :key-fn keyword))
+              {:status 200 :body (json/write-str {:captions {:playerCaptionsTracklistRenderer {:captionTracks tracks}}})})})
+
+(deftest the-youtube-plugin-reads-the-latest-videos-transcripts
+  (let [report (by-name (plugin/load-all! "plugins" {}))
+        seen (atom [])
+        {:keys [get request]} (youtube-http seen)]
+    (is (:ok (report "youtube")) (:error (report "youtube")))
+    (is (= 3 (:lookback-days (sources/shape :youtube))))
+    (with-redefs [http/get get http/request request]
+      (let [items (sources/fetch-items {:type :youtube :channels ["@chan"] :videos 2}
+                                       {:day "2026-09-30" :config {}})]
+        (testing "the latest videos of the last days, Shorts and older ones left out"
+          (is (= ["The latest" "The one before"] (map :title items))))
+        (testing "a video is credited to its channel, with its transcript as its text"
+          (is (= {:title "The latest"
+                  :url "https://www.youtube.com/watch?v=new1"
+                  :source "Chan"
+                  :summary "What it's about. Today we're looking at \"tariffs\"."
+                  :published "2026-09-29T12:00:00+00:00"
+                  :text "Transcript of the video on Chan:\nToday we're looking at \"tariffs\"."}
+                 (first items))))
+        (testing "the captions in the language asked for, people's over YouTube's, without srv3"
+          (is (some #{"https://yt.e/en"} @seen))
+          (is (not-any? #{"https://yt.e/asr" "https://yt.e/de"} @seen)))
+        (testing "the channel's handle is looked up once"
+          (sources/fetch-items {:type :youtube :channels ["@chan"]} {:day "2026-09-30" :config {}})
+          (is (= 1 (count (filter #{"https://www.youtube.com/@chan"} @seen)))))))))
+
+(deftest a-youtube-video-without-captions-is-still-an-item
+  (plugin/load-all! "plugins" {:plugins {:youtube {:client-version "99.0"}}})
+  (let [seen (atom [])
+        {:keys [get request]} (youtube-http seen {:tracks []})]
+    (with-redefs [http/get get http/request request]
+      (let [[item :as items] (sources/fetch-items {:type :youtube :name "Mine" :channels ["UCaaaaaaaaaaaaaaaaaaaaaa"]}
+                                                  {:day "2026-09-30" :config {}})]
+        (is (= 1 (count items)))
+        (is (= {:title "The latest" :source "Mine" :summary "What it's about."}
+               (select-keys item [:title :source :summary :text])))
+        (is (= "99.0" (get-in (first (filter map? @seen)) [:context :client :clientVersion]))
+            "the app version from the settings")
+        (is (not-any? #{"https://www.youtube.com/@chan"} @seen) "an ID needs no lookup")))))
+
+(deftest a-youtube-channel-that-fails-costs-only-itself
+  (plugin/load-all! "plugins" {})
+  (let [{:keys [get request]} (youtube-http (atom []))
+        events (atom [])]
+    (with-redefs [http/get get http/request request]
+      (is (= ["The latest"]
+             (map :title (sources/fetch-items {:type :youtube :channels ["@gone" "@chan"]}
+                                              {:day "2026-09-30" :config {} :emit #(swap! events conj (:text %))}))))
+      (is (some #(str/includes? % "couldn't read the channel @gone") @events))
+      (is (thrown-with-msg? Exception #"404"
+                            (sources/fetch-items {:type :youtube :channels ["@gone"]} {:day "2026-09-30" :config {}}))
+          "and fails the source when it's the only one"))))
+
+(deftest the-youtube-plugin-picks-captions-and-reads-pages
+  (plugin/load-all! "plugins" {})
+  (let [pick @(resolve 'youtube.core/pick-track)
+        page-id @(resolve 'youtube.core/page-channel-id)]
+    (is (= "fr" (:languageCode (pick [{:languageCode "fr" :kind "asr"} {:languageCode "de" :kind "asr"}] ["fr" "en"]))))
+    (is (= "de" (:languageCode (pick [{:languageCode "fr" :kind "asr"} {:languageCode "de"}] ["en"])))
+        "with none in the languages asked for, people's captions before YouTube's")
+    (is (nil? (pick [] ["en"])))
+    (is (= "UCbbbbbbbbbbbbbbbbbbbbbb" (page-id "x\"externalId\":\"UCbbbbbbbbbbbbbbbbbbbbbb\"y")))
+    (is (nil? (page-id "<html>consent</html>")))))
