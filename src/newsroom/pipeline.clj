@@ -734,7 +734,7 @@
               (if (seq updated)
                 (do (store/save-notes! store updated)
                     (log! run-id {:text (str "Updated the notes on " (count updated) " storylines") :level :ok}))
-                (log! run-id {:text "The notes weren't updated: the answer held no notes" :level :error})))
+                (log! run-id {:text "The notes stay as they were: the answer held nothing new"})))
             (catch Throwable e
               (when (interrupted? e) (throw e))
               (log! run-id {:text (str "The notes weren't updated: " (or (ex-message e) (str e)))
