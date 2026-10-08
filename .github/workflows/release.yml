@@ -37,6 +37,11 @@ jobs:
             target: x86_64-windows
             shell: msys2 {0}
     runs-on: ${{ matrix.os }}
+    # jolt's git and Maven caches, where actions/cache can find them. jolt
+    # reads HOME, which in an MSYS2 shell isn't the home actions/cache uses.
+    env:
+      JOLT_GITLIBS_DIR: ${{ github.workspace }}/.ci-deps/gitlibs
+      JOLT_MAVEN_REPOSITORY: ${{ github.workspace }}/.ci-deps/m2
     defaults:
       run:
         shell: ${{ matrix.shell }}
@@ -80,10 +85,7 @@ jobs:
       - name: Cache deps
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.jolt/gitlibs
-            ~/.jolt/mvnlibs
-            ~/.m2/repository
+          path: .ci-deps
           key: deps-${{ matrix.target }}-${{ hashFiles('deps.edn') }}
           restore-keys: deps-${{ matrix.target }}-
 
@@ -144,10 +146,10 @@ jobs:
           homes="$HOME"
           if [ -n "${USERPROFILE:-}" ]; then homes="$homes $(cygpath -u "$USERPROFILE")"; fi
           hidden=""
-          for h in $homes; do
-            for d in "$h/.jolt/gitlibs" "$h/.jolt/mvnlibs" "$h/.m2"; do
-              if [ -d "$d" ]; then mv "$d" "$d.hidden"; hidden="$hidden $d"; fi
-            done
+          dirs="$(pwd)/.ci-deps"
+          for h in $homes; do dirs="$dirs $h/.jolt/gitlibs $h/.jolt/mvnlibs $h/.m2"; done
+          for d in $dirs; do
+            if [ -d "$d" ]; then mv "$d" "$d.hidden"; hidden="$hidden $d"; fi
           done
           if [ "$RUNNER_OS" = Windows ]; then
             PATH=$(printf %s "$PATH" | tr : '\n' | grep -vi ucrt64 | paste -sd:)
