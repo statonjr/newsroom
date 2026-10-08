@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.5 — 8 October 2026
 
 ### Fixed
 
