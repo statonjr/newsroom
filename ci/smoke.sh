@@ -28,11 +28,27 @@ for _ in $(seq 1 60); do
   fi
   sleep 1
 done
+# an https source read through the test button: the TLS libraries have to
+# find CA certificates on a machine that isn't the one they were built on
+tls=""
+if [ "$ok" = 1 ]; then
+  tls=$(curl -s -X POST "http://127.0.0.1:${port}/config/test-source" \
+    --data-urlencode "_test=sources.0" \
+    --data-urlencode "sources.0.type=rss" \
+    --data-urlencode "sources.0.name=smoke" \
+    --data-urlencode "sources.0.url=https://github.com/yogthos/newsroom/releases.atom")
+fi
 kill "$pid" 2>/dev/null
 command -v taskkill >/dev/null && taskkill //F //IM "$(basename "$bin")" >/dev/null 2>&1
 cat smoke.log
 if [ "$ok" != 1 ]; then echo "smoke: no page after 60s"; exit 1; fi
 echo "smoke: served a page"
+if ! printf %s "$tls" | grep -q "Read [0-9]* item"; then
+  echo "smoke: couldn't read an https source:"
+  printf %s "$tls" | sed 's/<[^>]*>/ /g' | tr -s ' \n' | head -c 500; echo
+  exit 1
+fi
+echo "smoke: read an https source"
 for p in plugins/*/; do
   [ -d "$p" ] || continue
   p=$(basename "$p")

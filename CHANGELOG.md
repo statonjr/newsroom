@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **https on Windows.** Every https request failed with `TLS handshake
+  failed (SSL_get_error=1)`, models and feeds alike. The OpenSSL in the
+  Windows archive looked for CA certificates only where MSYS2 keeps them on
+  the machine it was built on. It now reads the Windows certificate store
+  (jolt-lang/http-client v0.1.1), and a failed handshake says why, like an
+  expired certificate or a hostname mismatch. The release's smoke test now
+  reads an https feed, so a build that can't is caught before it ships.
+
 ## v0.8.4 — 6 October 2026
 
 ### Added
