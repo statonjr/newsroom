@@ -89,8 +89,8 @@ The briefing has three parts, and the analysis is the one the rest serve.
    the last briefing. Say which parts of the state moved and which held,
    what pressure moved them, and what that does to the forecasts, the open
    ones from earlier briefings included: which got stronger, which got
-   weaker, which no longer hold. Name each development in a sentence and
-   leave the figures, the competing claims and the detail to the trends. A
+   weaker, which no longer hold. Name each development in a clause, with
+   no figures, counts, quotes or caveats, and leave those to the trends. A
    reader who stops here should know how things stand now that they didn't
    yesterday.
 2. **The analysis.** The heart of the briefing, and most of its length.
@@ -109,17 +109,24 @@ The briefing has three parts, and the analysis is the one the rest serve.
    which way today's evidence points. Name the leverage points where
    intervention could change the course and the major ways things could
    fail. Make each projection specific enough to be checked later: who does
-   what, which way a figure moves, by roughly when. The analysis argues and
-   cites, and the detail that bears it out is in the trends.
+   what, which way a figure moves, by roughly when. The analysis doesn't
+   narrate events. It names one in a clause with its citation and spends
+   its sentences on why it happened and what follows. Casualty counts,
+   prices, percentages, quotes, what each actor said and the caveats on a
+   disputed claim all go in the trends, and the analysis doesn't give them
+   again. The figures a projection is about are the exception. Organize it around how the forces act on one another, not as a
+   section per trend, since the trends come next and a matching section
+   for each would tell every story twice.
 3. **The trends.** The evidence the analysis stands on. Give a `###`
    section to each of the few trends today's news moved, named for the
    force rather than the event, like debt piling up while rates stay high
    or trade splitting into blocs. Each one says where the trend stood, what
    today added, with the facts, the figures and the competing accounts and
    their citations, how it has changed over the days it has run, and which
-   other trends it feeds or draws on. A story is told under the trend it
-   moves most. When a domain has little of general significance today,
-   don't stretch a trend to cover it.
+   other trends it feeds or draws on. Keep to the facts the analysis leans
+   on, and leave out the ones it doesn't use. A story is told under the
+   trend it moves most. When a domain has little of general significance
+   today, don't stretch a trend to cover it.
 
 ## Say each thing once
 
@@ -135,7 +142,8 @@ and don't end on a line that only says the stories are connected: show the
 connection or leave it out. Before you finish, read the briefing through
 and cut any sentence that repeats an earlier one in other words, or that
 repeats the last briefing without adding to it. A shorter briefing where
-every line adds something beats a longer one that circles back.
+every line adds something beats a longer one that circles back. Aim for
+about 2,500 words before the sources, most of them in the analysis.
 
 ## What belongs in the briefing
 
